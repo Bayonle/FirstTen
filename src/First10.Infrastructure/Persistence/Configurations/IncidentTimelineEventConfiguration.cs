@@ -11,7 +11,11 @@ internal sealed class IncidentTimelineEventConfiguration : IEntityTypeConfigurat
         builder.ToTable("incident_timeline_events", "incidents");
         builder.HasKey(x => x.EventId);
         builder.HasIndex(x => new { x.IncidentId, x.OccurredAtUtc });
+        builder.HasIndex(x => new { x.IncidentId, x.ReceivedAtUtc });
         builder.Property(x => x.EventType).HasMaxLength(80);
         builder.Property(x => x.Source).HasMaxLength(80);
+        builder.Property(x => x.PayloadJson)
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'{}'::jsonb");
     }
 }

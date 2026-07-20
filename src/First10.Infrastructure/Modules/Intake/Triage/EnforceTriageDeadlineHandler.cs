@@ -2,6 +2,7 @@ using System.Data;
 using First10.Infrastructure.Modules.IdentityAudit;
 using First10.Infrastructure.Persistence;
 using First10.Modules.IdentityAudit;
+using First10.Modules.Incidents;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Triage;
 using Microsoft.EntityFrameworkCore;
@@ -87,6 +88,7 @@ public static class EnforceTriageDeadlineHandler
         if (outcome is not null)
         {
             await bus.PublishAsync(new DeliverIntakePrompt(outcome.ReporterPromptIntentId));
+            await bus.PublishAsync(new CreateOrMatchIncident(command.TriageCaseId));
         }
     }
 }

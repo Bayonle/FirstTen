@@ -42,6 +42,18 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
 
     public DbSet<IncidentTimelineEvent> IncidentTimelineEvents => Set<IncidentTimelineEvent>();
 
+    public DbSet<Incident> Incidents => Set<Incident>();
+
+    public DbSet<IncidentSourceReport> IncidentSourceReports => Set<IncidentSourceReport>();
+
+    public DbSet<IncidentConflict> IncidentConflicts => Set<IncidentConflict>();
+
+    public DbSet<IncidentCandidateLink> IncidentCandidateLinks => Set<IncidentCandidateLink>();
+
+    public DbSet<IncidentReviewAlert> IncidentReviewAlerts => Set<IncidentReviewAlert>();
+
+    public DbSet<IncidentObservation> IncidentObservations => Set<IncidentObservation>();
+
     public DbSet<IncidentLocation> IncidentLocations => Set<IncidentLocation>();
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();

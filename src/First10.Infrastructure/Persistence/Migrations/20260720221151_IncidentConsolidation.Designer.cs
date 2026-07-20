@@ -3,6 +3,7 @@ using System;
 using First10.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace First10.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(First10DbContext))]
-    partial class First10DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260720221151_IncidentConsolidation")]
+    partial class IncidentConsolidation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -220,13 +223,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTimeOffset?>("RejectedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
-
                     b.Property<DateTimeOffset>("ReviewDueAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -294,9 +290,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("IncidentId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("LeftClaimId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("LeftReportId")
                         .HasColumnType("uuid");
 
@@ -312,9 +305,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<Guid>("RightClaimId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("RightReportId")
                         .HasColumnType("uuid");
 
@@ -323,15 +313,12 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<Guid?>("SelectedClaimId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid?>("SelectedReportId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IncidentId", "Field", "LeftClaimId", "RightClaimId")
+                    b.HasIndex("IncidentId", "Field", "LeftReportId", "RightReportId")
                         .IsUnique();
 
                     b.ToTable("conflicts", "incidents");
@@ -369,103 +356,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                     b.ToTable("incident_locations", "incidents");
                 });
 
-            modelBuilder.Entity("First10.Modules.Incidents.IncidentObservation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Direction")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<Guid>("IncidentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<double?>("Latitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("LocationDescription")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
-
-                    b.Property<double?>("Longitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<DateTimeOffset>("OccurredAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("ReceivedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SceneState")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<Guid>("SourceReportId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("VictimState")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SourceReportId");
-
-                    b.HasIndex("IncidentId", "OccurredAtUtc");
-
-                    b.ToTable("observations", "incidents");
-                });
-
-            modelBuilder.Entity("First10.Modules.Incidents.IncidentReviewAlert", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("IncidentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Priority")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTimeOffset>("RaisedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<DateTimeOffset?>("ResolvedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IncidentId")
-                        .IsUnique();
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("review_alerts", "incidents");
-                });
-
             modelBuilder.Entity("First10.Modules.Incidents.IncidentSourceReport", b =>
                 {
                     b.Property<Guid>("ReportId")
@@ -477,11 +367,6 @@ namespace First10.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("CasualtyMinimum")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Direction")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("EvidenceReferences")
                         .IsRequired()
@@ -502,10 +387,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                     b.Property<double?>("LocationConfidence")
                         .HasColumnType("double precision");
 
-                    b.Property<string>("LocationDescription")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
-
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
@@ -520,21 +401,7 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<string>("SceneState")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<string>("Severity")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("VerifiedPilotIdentityKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("VictimState")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
@@ -571,9 +438,8 @@ namespace First10.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("PayloadJson")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasDefaultValueSql("'{}'::jsonb");
+                        .HasDefaultValueSql("'{}'::jsonb")
+                        .HasColumnType("jsonb");
 
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1368,30 +1234,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("First10.Modules.Incidents.IncidentObservation", b =>
-                {
-                    b.HasOne("First10.Modules.Incidents.Incident", null)
-                        .WithMany("Observations")
-                        .HasForeignKey("IncidentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("First10.Modules.Incidents.IncidentSourceReport", null)
-                        .WithMany()
-                        .HasForeignKey("SourceReportId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("First10.Modules.Incidents.IncidentReviewAlert", b =>
-                {
-                    b.HasOne("First10.Modules.Incidents.Incident", null)
-                        .WithMany()
-                        .HasForeignKey("IncidentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("First10.Modules.Incidents.IncidentSourceReport", b =>
                 {
                     b.HasOne("First10.Modules.Incidents.Incident", null)
@@ -1500,8 +1342,6 @@ namespace First10.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("First10.Modules.Incidents.Incident", b =>
                 {
                     b.Navigation("Conflicts");
-
-                    b.Navigation("Observations");
 
                     b.Navigation("SourceReports");
                 });

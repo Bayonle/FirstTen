@@ -2,6 +2,7 @@ using System.Reflection;
 using First10.Infrastructure.Messaging;
 using First10.Infrastructure.Persistence;
 using First10.Infrastructure.Modules.IdentityAudit;
+using First10.Infrastructure.Modules.Incidents;
 using First10.Infrastructure.Modules.Intake;
 using First10.Api.Auth;
 using First10.Api.Webhooks;
@@ -16,6 +17,7 @@ builder.Services.AddFirst10Persistence(databaseConnection);
 var requireSecureCookies = !builder.Environment.IsDevelopment();
 builder.Services.AddFirst10Identity(requireSecureCookies);
 builder.Services.AddFirst10Intake();
+builder.Services.AddFirst10Incidents();
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";

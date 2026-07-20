@@ -5,12 +5,14 @@ using First10.Infrastructure.Modules.Intake.Media;
 using First10.Infrastructure.Modules.Intake.OpenAI;
 using First10.Infrastructure.Persistence;
 using First10.Modules.IdentityAudit;
+using First10.Modules.Incidents;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
 using First10.Modules.Intake.Triage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
+using Wolverine;
 
 namespace First10.Infrastructure.Modules.Intake.Triage;
 
@@ -25,7 +27,7 @@ public sealed class TriageSessionProcessor(
     IConfiguration configuration,
     TimeProvider timeProvider)
 {
-    public async Task ProcessAsync(
+    public async Task<TriageProcessingOutcome?> ProcessAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
@@ -34,19 +36,21 @@ public sealed class TriageSessionProcessor(
             cancellationToken);
         if (triageCase is null)
         {
-            return;
+            return null;
         }
 
         if (triageCase.Status == TriageStatus.Completed)
         {
-            await TryApplyReporterPinAsync(triageCase, cancellationToken);
-            return;
+            var lateLocation = await TryApplyReporterPinAsync(triageCase, cancellationToken);
+            return lateLocation is null
+                ? null
+                : new TriageProcessingOutcome(triageCase.Id, false, lateLocation);
         }
 
         var now = timeProvider.GetUtcNow();
         if (now >= triageCase.DeadlineAtUtc || triageCase.Status != TriageStatus.AwaitingEvidence)
         {
-            return;
+            return null;
         }
 
         var session = await database.GuidedIntakeSessions
@@ -60,13 +64,13 @@ public sealed class TriageSessionProcessor(
             || audioAsset.SafeContentType is null
             || audioAsset.SafeLength is null)
         {
-            return;
+            return null;
         }
 
         var expectedVersion = triageCase.AuthoritativeVersion;
         if (!triageCase.TryStartProcessing(now))
         {
-            return;
+            return null;
         }
 
         try
@@ -76,13 +80,13 @@ public sealed class TriageSessionProcessor(
         catch (DbUpdateConcurrencyException)
         {
             database.ChangeTracker.Clear();
-            return;
+            return null;
         }
 
         var remaining = triageCase.DeadlineAtUtc - timeProvider.GetUtcNow();
         if (remaining <= TimeSpan.Zero)
         {
-            return;
+            return null;
         }
 
         using var deadlineCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -134,13 +138,14 @@ public sealed class TriageSessionProcessor(
                     ReadEnabledGuidanceCategories(),
                     expectedVersion),
                 deadlineToken);
-            await ApplyResultAsync(
+            var authoritative = await ApplyResultAsync(
                 triageCase.Id,
                 result,
                 expectedVersion,
                 timeProvider.GetUtcNow(),
                 session.Id,
                 cancellationToken);
+            return new TriageProcessingOutcome(triageCase.Id, authoritative, null);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -161,9 +166,11 @@ public sealed class TriageSessionProcessor(
                 CryptographicOperations.ZeroMemory(imageBytes);
             }
         }
+
+        return null;
     }
 
-    private async Task ApplyResultAsync(
+    private async Task<bool> ApplyResultAsync(
         Guid triageCaseId,
         TriageProviderResult result,
         int expectedVersion,
@@ -173,15 +180,15 @@ public sealed class TriageSessionProcessor(
     {
         try
         {
-            await PersistAsync();
+            return await PersistAsync();
         }
         catch (DbUpdateConcurrencyException)
         {
             database.ChangeTracker.Clear();
-            await PersistAsync();
+            return await PersistAsync();
         }
 
-        async Task PersistAsync()
+        async Task<bool> PersistAsync()
         {
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
             await database.Database.ExecuteSqlInterpolatedAsync(
@@ -234,6 +241,7 @@ public sealed class TriageSessionProcessor(
                 cancellationToken);
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            return authoritative;
         }
     }
 
@@ -284,7 +292,7 @@ public sealed class TriageSessionProcessor(
             .ToHashSet();
     }
 
-    private async Task TryApplyReporterPinAsync(
+    private async Task<LateLocationEvidence?> TryApplyReporterPinAsync(
         TriageCase triageCase,
         CancellationToken cancellationToken)
     {
@@ -299,7 +307,7 @@ public sealed class TriageSessionProcessor(
             .FirstOrDefault();
         if (pin is null || triageCase.AuthoritativeAssessmentId is null)
         {
-            return;
+            return null;
         }
 
         var assessment = await database.TriageAssessments.SingleAsync(
@@ -312,7 +320,7 @@ public sealed class TriageSessionProcessor(
             $"pin:{pin.Id:N}");
         if (resolved is null || !assessment.TryApplyResolvedLocation(resolved))
         {
-            return;
+            return null;
         }
 
         await AuditWriter.AppendAsync(
@@ -327,14 +335,52 @@ public sealed class TriageSessionProcessor(
             }),
             cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
+        return new LateLocationEvidence(
+            pin.Id,
+            pin.OccurredAtUtc,
+            timeProvider.GetUtcNow(),
+            resolved.Latitude,
+            resolved.Longitude,
+            resolved.Confidence);
     }
 }
 
+public sealed record LateLocationEvidence(
+    Guid EvidenceId,
+    DateTimeOffset OccurredAtUtc,
+    DateTimeOffset ReceivedAtUtc,
+    double Latitude,
+    double Longitude,
+    double Confidence);
+
+public sealed record TriageProcessingOutcome(
+    Guid TriageCaseId,
+    bool Authoritative,
+    LateLocationEvidence? LateLocation);
+
 public static class TryTriageSessionHandler
 {
-    public static Task Handle(
+    public static async Task Handle(
         TryTriageSession command,
         TriageSessionProcessor processor,
-        CancellationToken cancellationToken) =>
-        processor.ProcessAsync(command.SessionId, cancellationToken);
+        IMessageBus bus,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await processor.ProcessAsync(command.SessionId, cancellationToken);
+        if (outcome?.Authoritative == true)
+        {
+            await bus.PublishAsync(new CreateOrMatchIncident(outcome.TriageCaseId));
+        }
+        else if (outcome?.LateLocation is not null)
+        {
+            await bus.PublishAsync(new ApplyLateIncidentLocation(
+                outcome.TriageCaseId,
+                outcome.LateLocation.EvidenceId,
+                outcome.LateLocation.OccurredAtUtc,
+                outcome.LateLocation.ReceivedAtUtc,
+                outcome.LateLocation.Latitude,
+                outcome.LateLocation.Longitude,
+                outcome.LateLocation.Confidence));
+        }
+    }
 }
