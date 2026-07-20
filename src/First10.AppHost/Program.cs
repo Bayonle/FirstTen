@@ -8,6 +8,7 @@ var database = builder
 
 var objectStorageAccessKey = builder.AddParameter("object-storage-access-key", secret: true);
 var objectStorageSecretKey = builder.AddParameter("object-storage-secret-key", secret: true);
+var bootstrapSecret = builder.AddParameter("bootstrap-secret", secret: true);
 
 var objectStorage = builder
     .AddContainer("object-storage", "minio/minio")
@@ -21,6 +22,7 @@ var objectStorage = builder
 var api = builder
     .AddProject<Projects.First10_Api>("api")
     .WithReference(database)
+    .WithEnvironment("Security__BootstrapSecret", bootstrapSecret)
     .WithEnvironment("ObjectStorage__Endpoint", objectStorage.GetEndpoint("s3"))
     .WaitFor(database)
     .WaitFor(objectStorage);

@@ -11,9 +11,7 @@ public sealed class TimelineAppendTests(PostgresFixture postgres)
     [Fact]
     public async Task ConflictingLocationClaimsArePreservedAndProjectedAsAConflict()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using var database = new First10DbContext(options);
         await database.Database.MigrateAsync();
         var incidentId = Guid.NewGuid();
@@ -40,9 +38,7 @@ public sealed class TimelineAppendTests(PostgresFixture postgres)
     [Fact]
     public async Task ReplayingATimelineEventIsIdempotent()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using var database = new First10DbContext(options);
         await database.Database.MigrateAsync();
         var claim = new LocationClaim(Guid.NewGuid(), Guid.NewGuid(), "reporter", 6.6018, 3.3515, DateTimeOffset.UtcNow);
@@ -58,9 +54,7 @@ public sealed class TimelineAppendTests(PostgresFixture postgres)
     [Fact]
     public async Task ConcurrentClaimsAreBothPreservedWithoutSilentOverwrite()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using (var migrationDatabase = new First10DbContext(options))
         {
             await migrationDatabase.Database.MigrateAsync();

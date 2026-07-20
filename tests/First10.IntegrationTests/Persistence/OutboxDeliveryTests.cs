@@ -18,9 +18,7 @@ public sealed class OutboxDeliveryTests(PostgresFixture postgres)
     [Fact]
     public async Task DuplicateChannelMessageCreatesOneReceiptAndOneDownstreamCommand()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using var database = new First10DbContext(options);
         await database.Database.MigrateAsync();
 
@@ -39,9 +37,7 @@ public sealed class OutboxDeliveryTests(PostgresFixture postgres)
     [Fact]
     public async Task ConcurrentReceiptWritesAcceptExactlyOneCopy()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using (var migrationDatabase = new First10DbContext(options))
         {
             await migrationDatabase.Database.MigrateAsync();
@@ -67,9 +63,7 @@ public sealed class OutboxDeliveryTests(PostgresFixture postgres)
     [Fact]
     public async Task SemanticOutboundReplayDoesNotCreateAnotherDeliveryRecord()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using var database = new First10DbContext(options);
         await database.Database.MigrateAsync();
         var command = new AcceptedInboundWork(Guid.NewGuid(), "trace-safe-03");
@@ -92,9 +86,7 @@ public sealed class OutboxDeliveryTests(PostgresFixture postgres)
     [Fact]
     public async Task EfOutboxCommitsStateAndDeliversThroughPostgres()
     {
-        var options = new DbContextOptionsBuilder<First10DbContext>()
-            .UseNpgsql(postgres.ConnectionString)
-            .Options;
+        var options = PersistenceConfiguration.CreateOptions(postgres.ConnectionString);
         await using (var database = new First10DbContext(options))
         {
             await database.Database.MigrateAsync();

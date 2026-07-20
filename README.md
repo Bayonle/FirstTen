@@ -19,6 +19,7 @@ stable is required when reusing the named development volume:
 dotnet user-secrets --project src/First10.AppHost set Parameters:postgres-password "choose-a-long-local-secret"
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-access-key first10-local
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-secret-key "choose-a-long-local-secret"
+dotnet user-secrets --project src/First10.AppHost set Parameters:bootstrap-secret "choose-a-different-long-local-secret"
 ```
 
 Install the frontend dependencies once, then start the complete development topology:
@@ -30,6 +31,10 @@ dotnet run --project src/First10.AppHost
 
 Aspire starts the API, worker, Vite server, PostgreSQL, S3-compatible object storage, and the local
 telemetry dashboard. Aspire is not part of the production runtime.
+
+The bootstrap secret can issue only the first Administrator invitation and becomes unusable as soon
+as that provisional account exists. Remove it from the secret store after the first administrator
+has enrolled. There is no public registration endpoint.
 
 ## Production shape
 

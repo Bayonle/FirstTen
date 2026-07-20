@@ -1,6 +1,8 @@
 using System.Reflection;
 using First10.Infrastructure.Messaging;
 using First10.Infrastructure.Persistence;
+using First10.Infrastructure.Modules.IdentityAudit;
+using First10.Api.Auth;
 using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +11,19 @@ builder.AddServiceDefaults();
 var databaseConnection = builder.Configuration.GetConnectionString("first10")
     ?? throw new InvalidOperationException("Connection string 'first10' is required.");
 builder.Services.AddFirst10Persistence(databaseConnection);
+var requireSecureCookies = !builder.Environment.IsDevelopment();
+builder.Services.AddFirst10Identity(requireSecureCookies);
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "First10.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = requireSecureCookies
+        ? CookieSecurePolicy.Always
+        : CookieSecurePolicy.SameAsRequest;
+});
+builder.Services.AddSignalR();
 builder.Host.UseWolverine(options => WolverineConfiguration.Configure(
     options,
     databaseConnection,
@@ -26,9 +41,20 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
 
 app.MapOpenApi();
 app.MapDefaultEndpoints();
+app.MapFirst10Authentication();
+app.MapHub<OperationsHub>("/hubs/operations");
+app.MapGet("/api/dispatch/probe", () => Results.Ok(new { access = "dispatcher" }))
+    .RequireAuthorization(IdentityConfiguration.DispatcherPolicy);
+app.MapGet("/api/admin/probe", () => Results.Ok(new { access = "administrator" }))
+    .RequireAuthorization(IdentityConfiguration.AdministratorPolicy);
+app.MapGet("/api/clinical/probe", () => Results.Ok(new { access = "clinical-approver" }))
+    .RequireAuthorization(IdentityConfiguration.ClinicalApproverPolicy);
 
 app.MapGet("/api/system", () => Results.Ok(new
 {

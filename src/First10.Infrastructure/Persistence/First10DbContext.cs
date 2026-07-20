@@ -1,12 +1,17 @@
+using First10.Infrastructure.Modules.IdentityAudit;
 using First10.Modules.BuildingBlocks.Persistence;
 using First10.Modules.Incidents;
 using First10.Modules.Intake;
+using First10.Modules.IdentityAudit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore;
 
 namespace First10.Infrastructure.Persistence;
 
-public sealed class First10DbContext(DbContextOptions<First10DbContext> options) : DbContext(options)
+public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
+    : IdentityDbContext<First10User, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<InboundMessageReceipt> InboundMessageReceipts => Set<InboundMessageReceipt>();
 
@@ -16,9 +21,22 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
 
     public DbSet<IncidentLocation> IncidentLocations => Set<IncidentLocation>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+
+    public DbSet<UserInvitation> UserInvitations => Set<UserInvitation>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(First10DbContext).Assembly);
-        modelBuilder.MapWolverineEnvelopeStorage();
+        base.OnModelCreating(builder);
+        builder.ApplyConfigurationsFromAssembly(typeof(First10DbContext).Assembly);
+        builder.MapWolverineEnvelopeStorage();
+
+        builder.Entity<First10User>().ToTable("users", "identity_audit");
+        builder.Entity<IdentityRole<Guid>>().ToTable("roles", "identity_audit");
+        builder.Entity<IdentityUserRole<Guid>>().ToTable("user_roles", "identity_audit");
+        builder.Entity<IdentityUserClaim<Guid>>().ToTable("user_claims", "identity_audit");
+        builder.Entity<IdentityUserLogin<Guid>>().ToTable("user_logins", "identity_audit");
+        builder.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claims", "identity_audit");
+        builder.Entity<IdentityUserToken<Guid>>().ToTable("user_tokens", "identity_audit");
     }
 }
