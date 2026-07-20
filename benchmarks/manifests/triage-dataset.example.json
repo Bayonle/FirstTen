@@ -1,0 +1,27 @@
+{
+  "version": "example-v1",
+  "pricing": [
+    { "model": "gpt-4o-transcribe", "inputUsdPerMillion": 0, "outputUsdPerMillion": 0 },
+    { "model": "gpt-5.6-luna", "inputUsdPerMillion": 0, "outputUsdPerMillion": 0 },
+    { "model": "gpt-5.6-terra", "inputUsdPerMillion": 0, "outputUsdPerMillion": 0 },
+    { "model": "gpt-5.6-sol", "inputUsdPerMillion": 0, "outputUsdPerMillion": 0 }
+  ],
+  "cases": [
+    {
+      "id": "approved-private-english-001",
+      "audioFile": "../private/triage/english-001.ogg",
+      "blurredImageFile": "../private/triage/english-001.blurred.jpg",
+      "sourceOccurredAtUtc": "2026-07-20T12:00:00Z",
+      "expected": {
+        "incidentType": "road_traffic_collision",
+        "severity": "high",
+        "casualtyMinimum": 1,
+        "casualtyMaximum": 2,
+        "language": "english",
+        "locationTerms": ["Mowe", "toll gate"],
+        "uncertainty": "medium",
+        "guidanceCategory": "none"
+      }
+    }
+  ]
+}

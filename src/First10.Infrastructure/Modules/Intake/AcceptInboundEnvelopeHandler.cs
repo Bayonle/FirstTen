@@ -1,6 +1,7 @@
 using First10.Infrastructure.Persistence;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
+using First10.Modules.Intake.Triage;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using System.Data;
@@ -31,6 +32,20 @@ public static class AcceptInboundEnvelopeHandler
                 await bus.PublishAsync(new ProcessIntakeMedia(inputId));
             }
         }
+        else if (command.Envelope.ContentKind == IntakeContentKind.Location)
+        {
+            var sessionId = await database.GuidedIntakeSessions
+                .Where(x => x.Channel == command.Envelope.Channel
+                            && x.ContactReference == command.Envelope.ContactReference)
+                .SelectMany(x => x.Inputs.Select(input => new { x.Id, Input = input }))
+                .Where(x => x.Input.ProviderMessageId == command.Envelope.ProviderMessageId)
+                .Select(x => x.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (sessionId != Guid.Empty)
+            {
+                await bus.PublishAsync(new TryTriageSession(sessionId));
+            }
+        }
 
         if (outcome is not null)
         {
@@ -45,6 +60,9 @@ public static class AcceptInboundEnvelopeHandler
             await bus.ScheduleAsync(
                 new ExpireGuidedSession(outcome.SessionId),
                 outcome.ExpiresAtUtc);
+            await bus.ScheduleAsync(
+                new EnforceTriageDeadline(outcome.SessionId),
+                outcome.TriageDeadlineAtUtc);
         }
     }
 }
@@ -53,6 +71,7 @@ public sealed record OpenedSessionSchedule(
     Guid SessionId,
     DateTimeOffset LocationReminderDueAtUtc,
     DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset TriageDeadlineAtUtc,
     IReadOnlyList<Guid> PromptIntentIds);
 
 public sealed class GuidedIntakeProcessor(First10DbContext database)
@@ -128,6 +147,8 @@ public sealed class GuidedIntakeProcessor(First10DbContext database)
 
         session = GuidedIntakeSession.Open(Guid.NewGuid(), envelope, CollectionWindow);
         database.GuidedIntakeSessions.Add(session);
+        var triageCase = TriageCase.Open(session.Id, session.OpenedAtUtc);
+        database.TriageCases.Add(triageCase);
         var promptIntentIds = new List<Guid>
         {
             AddPrompt(session, IntakePrompt.Acknowledgement)
@@ -147,6 +168,7 @@ public sealed class GuidedIntakeProcessor(First10DbContext database)
             session.Id,
             session.LocationReminderDueAtUtc,
             session.ExpiresAtUtc,
+            triageCase.DeadlineAtUtc,
             promptIntentIds);
     }
 

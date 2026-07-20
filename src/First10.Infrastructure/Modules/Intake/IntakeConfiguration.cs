@@ -2,6 +2,10 @@ using First10.Infrastructure.Modules.Intake.Channels;
 using First10.Infrastructure.Modules.Intake.Channels.Telegram;
 using First10.Infrastructure.Modules.Intake.Channels.WhatsApp;
 using First10.Infrastructure.Modules.Intake.Media;
+using First10.Infrastructure.Modules.Intake.Triage;
+using First10.Infrastructure.Modules.Intake.Location;
+using First10.Infrastructure.Modules.Intake.OpenAI;
+using First10.Modules.Intake.Triage;
 using First10.Modules.Intake.Media;
 using Amazon.S3;
 using Microsoft.AspNetCore.DataProtection;
@@ -27,7 +31,24 @@ public static class IntakeConfiguration
         services.AddScoped<ChannelDeliveryReceiptProcessor>();
         services.AddScoped<IntakePromptDeliveryService>();
         services.AddScoped<MediaPrivacyPipeline>();
+        services.AddScoped<TriageDeadlineProcessor>();
         services.AddScoped<IMediaDegradationPublisher, WolverineMediaDegradationPublisher>();
+        services.AddScoped<ITriageKickoffPublisher, WolverineTriageKickoffPublisher>();
+        services.AddScoped<TriageSessionProcessor>();
+        services.AddSingleton<OpenAiAudioPreparer>();
+        services.AddSingleton<OpenAiSafetyIdentifier>();
+        services.AddSingleton<CorridorGazetteer>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddHttpClient<IReporterAudioTranscriber, OpenAiTranscriptionClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(20);
+        });
+        services.AddHttpClient<IStructuredTriageProvider, OpenAiStructuredTriageClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(20);
+        });
         services.AddSingleton<TelegramInboundAdapter>();
         services.AddSingleton<WhatsAppInboundAdapter>();
         services.AddSingleton<IChannelMessageSender, TelegramChannelMessageSender>();
@@ -41,7 +62,9 @@ public static class IntakeConfiguration
         services.AddSingleton<IMediaEnvelopeEncryptor, AesGcmMediaEnvelopeEncryptor>();
         services.AddSingleton<IAmazonS3>(provider =>
             SafeMediaStore.CreateClient(provider.GetRequiredService<IConfiguration>()));
-        services.AddSingleton<ISafeMediaStore, SafeMediaStore>();
+        services.AddSingleton<SafeMediaStore>();
+        services.AddSingleton<ISafeMediaStore>(provider => provider.GetRequiredService<SafeMediaStore>());
+        services.AddSingleton<ISafeMediaReader>(provider => provider.GetRequiredService<SafeMediaStore>());
         return services;
     }
 }

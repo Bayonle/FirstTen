@@ -14,6 +14,8 @@ var telegramBotToken = builder.AddParameter("telegram-bot-token", secret: true);
 var reporterPseudonymKey = builder.AddParameter("reporter-pseudonym-key", secret: true);
 var mediaEncryptionKey = builder.AddParameter("media-encryption-key", secret: true);
 var faceRedactionModelPath = builder.AddParameter("face-redaction-model-path");
+var openAiApiKey = builder.AddParameter("openai-api-key", secret: true);
+var openAiSafetyIdentifierKey = builder.AddParameter("openai-safety-identifier-key", secret: true);
 
 var objectStorage = builder
     .AddContainer("object-storage", "minio/minio", "RELEASE.2025-09-07T16-13-09Z")
@@ -47,6 +49,9 @@ builder
     .WithEnvironment("MediaEncryption__ActiveKeyVersion", "local-v1")
     .WithEnvironment("MediaEncryption__Keys__local-v1", mediaEncryptionKey)
     .WithEnvironment("Models__FaceRedaction__Path", faceRedactionModelPath)
+    .WithEnvironment("OpenAI__ApiKey", openAiApiKey)
+    .WithEnvironment("OpenAI__SafetyIdentifierKey", openAiSafetyIdentifierKey)
+    .WithEnvironment("OpenAI__TriageModel", "gpt-5.6-luna")
     .WaitFor(database)
     .WaitFor(objectStorage);
 

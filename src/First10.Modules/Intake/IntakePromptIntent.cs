@@ -162,7 +162,7 @@ public sealed class IntakePromptIntent
 
 public static class IntakeMessageCatalogue
 {
-    public const string Version = "2026-07-20.2";
+    public const string Version = "2026-07-20.3";
 
     private static readonly Dictionary<(IntakeLanguage, IntakePrompt), string> Messages =
         new Dictionary<(IntakeLanguage, IntakePrompt), string>
@@ -174,6 +174,7 @@ public static class IntakeMessageCatalogue
             [(IntakeLanguage.English, IntakePrompt.RemindLocation)] = "We still need the location pin. If it is unsafe, do not move closer.",
             [(IntakeLanguage.English, IntakePrompt.ContinueWithoutImage)] = "We could not safely use that image. Please send a voice note and location pin; we will continue without the image.",
             [(IntakeLanguage.English, IntakePrompt.ContinueWithoutAudio)] = "We could not safely use that voice note. Please share a location pin; we will continue with manual review.",
+            [(IntakeLanguage.English, IntakePrompt.ManualReviewFallback)] = "Automated triage is delayed. A dispatcher will review your report. If there is immediate danger, call FRSC 122.",
             [(IntakeLanguage.NigerianPidgin, IntakePrompt.Acknowledgement)] = "We don receive your report. Abeg stay safe, no enter road.",
             [(IntakeLanguage.NigerianPidgin, IntakePrompt.RequestPhoto)] = "If e safe, abeg send picture of the crash.",
             [(IntakeLanguage.NigerianPidgin, IntakePrompt.RequestVoice)] = "Abeg send short voice note tell us wetin happen.",
@@ -181,6 +182,7 @@ public static class IntakeMessageCatalogue
             [(IntakeLanguage.NigerianPidgin, IntakePrompt.RemindLocation)] = "We still need location pin. If e no safe, no move go near.",
             [(IntakeLanguage.NigerianPidgin, IntakePrompt.ContinueWithoutImage)] = "We no fit use that picture safely. Abeg send voice note and location pin; we go continue without the picture.",
             [(IntakeLanguage.NigerianPidgin, IntakePrompt.ContinueWithoutAudio)] = "We no fit use that voice note safely. Abeg send location pin; person go review the report.",
+            [(IntakeLanguage.NigerianPidgin, IntakePrompt.ManualReviewFallback)] = "Automated check delay. Dispatcher go review your report. If danger dey now, call FRSC 122.",
             [(IntakeLanguage.Yoruba, IntakePrompt.Acknowledgement)] = "A ti gba iroyin naa. Jowo duro lailewu, mase wo oju popona.",
             [(IntakeLanguage.Yoruba, IntakePrompt.RequestPhoto)] = "Jowo fi aworan ijamba ranse ti o ba le se lailewu.",
             [(IntakeLanguage.Yoruba, IntakePrompt.RequestVoice)] = "Jowo fi ifiranse ohun kukuru ranse nipa ohun to sele.",
@@ -188,6 +190,7 @@ public static class IntakeMessageCatalogue
             [(IntakeLanguage.Yoruba, IntakePrompt.RemindLocation)] = "A tun nilo ami ibi naa. Ma sunmo ti ko ba lewu.",
             [(IntakeLanguage.Yoruba, IntakePrompt.ContinueWithoutImage)] = "A ko le lo aworan naa lailewu. Jowo fi ohun ati ami ibi ranse; a o tesiwaju laisi aworan naa.",
             [(IntakeLanguage.Yoruba, IntakePrompt.ContinueWithoutAudio)] = "A ko le lo ohun naa lailewu. Jowo fi ami ibi ranse; eniyan yoo se ayewo iroyin naa.",
+            [(IntakeLanguage.Yoruba, IntakePrompt.ManualReviewFallback)] = "Ayewo aladaaṣe ti pe. Oluranse yoo se ayewo iroyin re. Ti ewu ba wa bayii, pe FRSC 122.",
         };
 
     public static string Get(IntakeLanguage language, IntakePrompt prompt) => Messages[(language, prompt)];

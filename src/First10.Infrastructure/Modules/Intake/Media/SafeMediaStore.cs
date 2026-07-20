@@ -153,8 +153,10 @@ public sealed class AesGcmMediaEnvelopeEncryptor(IConfiguration configuration) :
 public sealed class SafeMediaStore(
     IAmazonS3 client,
     IMediaEnvelopeEncryptor encryptor,
-    IConfiguration configuration) : ISafeMediaStore
+    IConfiguration configuration) : ISafeMediaStore, ISafeMediaReader
 {
+    private const int MaximumEnvelopeOverhead = 256;
+
     public Task DeleteAsync(string objectKey, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
@@ -199,6 +201,75 @@ public sealed class SafeMediaStore(
         finally
         {
             CryptographicOperations.ZeroMemory(encrypted.Bytes);
+        }
+    }
+
+    public async Task<SafeMediaContent> ReadAsync(
+        Guid assetId,
+        string objectKey,
+        string contentType,
+        long expectedPlaintextLength,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        if (expectedPlaintextLength is <= 0 or > int.MaxValue - MaximumEnvelopeOverhead)
+        {
+            throw new InvalidOperationException("Safe media length is invalid.");
+        }
+
+        var maximumEncryptedLength = checked((int)expectedPlaintextLength + MaximumEnvelopeOverhead);
+        var bucket = configuration["ObjectStorage:SafeMediaBucket"] ?? "first10-safe-media";
+        using var response = await client.GetObjectAsync(
+            new GetObjectRequest { BucketName = bucket, Key = objectKey },
+            cancellationToken);
+        if (response.ContentLength <= 0 || response.ContentLength > maximumEncryptedLength)
+        {
+            throw new InvalidOperationException("Safe media object length is invalid.");
+        }
+
+        var encrypted = GC.AllocateUninitializedArray<byte>(checked((int)response.ContentLength));
+        try
+        {
+            var offset = 0;
+            while (offset < encrypted.Length)
+            {
+                var read = await response.ResponseStream.ReadAsync(
+                    encrypted.AsMemory(offset),
+                    cancellationToken);
+                if (read == 0)
+                {
+                    throw new EndOfStreamException("Safe media object ended unexpectedly.");
+                }
+
+                offset += read;
+            }
+
+            var trailing = new byte[1];
+            try
+            {
+                if (await response.ResponseStream.ReadAsync(trailing, cancellationToken) != 0)
+                {
+                    throw new InvalidOperationException("Safe media object exceeds its declared length.");
+                }
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(trailing);
+            }
+
+            var plaintext = encryptor.Decrypt(assetId, encrypted);
+            if (plaintext.LongLength != expectedPlaintextLength)
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+                throw new InvalidOperationException("Safe media plaintext length is invalid.");
+            }
+
+            return new SafeMediaContent(plaintext, contentType);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(encrypted);
         }
     }
 

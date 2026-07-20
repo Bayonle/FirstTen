@@ -25,9 +25,19 @@ dotnet user-secrets --project src/First10.AppHost set Parameters:telegram-bot-to
 dotnet user-secrets --project src/First10.AppHost set Parameters:reporter-pseudonym-key "choose-an-independent-32-character-minimum-key"
 dotnet user-secrets --project src/First10.AppHost set Parameters:media-encryption-key "paste-a-base64-encoded-32-byte-key"
 dotnet user-secrets --project src/First10.AppHost set Parameters:face-redaction-model-path "/absolute/path/to/FirstTen/models/face_detection_yunet_2026may.onnx"
+dotnet user-secrets --project src/First10.AppHost set Parameters:openai-api-key "paste-the-project-api-key"
+dotnet user-secrets --project src/First10.AppHost set Parameters:openai-safety-identifier-key "choose-an-independent-32-character-minimum-key"
 ```
 
 Generate the media key with `openssl rand -base64 32`; do not reuse the reporter pseudonym key.
+The OpenAI safety-identifier key must also be independent: it HMACs the already pseudonymous
+reporter key before any request leaves First10. OpenAI response storage is disabled in every triage
+request. No guidance category is enabled by default; clinically approved categories must be added
+to `Guidance:EnabledCategories` only after sign-off.
+
+The checked-in corridor gazetteer is deliberately non-operational until FRSC supplies and reviews
+the Berger–Mowe landmark coordinates, aliases, and directions. Until then, landmark phrases fail
+closed to the existing location-pin request flow.
 
 Fetch and checksum the pinned MIT-licensed face detector before first startup:
 

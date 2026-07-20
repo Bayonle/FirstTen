@@ -37,6 +37,7 @@ public sealed class MediaRetentionTests(Persistence.PostgresFixture postgres)
             database,
             pipeline,
             publisher,
+            new RecordingTriageKickoffPublisher(),
             CancellationToken.None);
 
         var asset = await database.IntakeMediaAssets.SingleAsync(x => x.Id == input.Id);
@@ -146,6 +147,14 @@ public sealed class MediaRetentionTests(Persistence.PostgresFixture postgres)
             Published.Add(message);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class RecordingTriageKickoffPublisher : ITriageKickoffPublisher
+    {
+        public ValueTask PublishAsync(
+            First10.Modules.Intake.Triage.TryTriageSession message,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.CompletedTask;
     }
 
     private sealed class DeletionRecordingStore : ISafeMediaStore

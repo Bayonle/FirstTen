@@ -43,10 +43,17 @@ public sealed class SafeObjectStoreTests(ObjectStorageFixture storage)
         await response.ResponseStream.CopyToAsync(encryptedBuffer);
         var encrypted = encryptedBuffer.ToArray();
         var decrypted = encryptor.Decrypt(assetId, encrypted);
+        using var readBack = await store.ReadAsync(
+            assetId,
+            stored.ObjectKey,
+            stored.ContentType,
+            stored.Length);
 
         Assert.Equal("application/octet-stream", response.Headers.ContentType);
         Assert.False(encrypted.AsSpan().IndexOf(safeDerivative) >= 0);
         Assert.Equal(safeDerivative, decrypted);
+        Assert.Equal(safeDerivative, readBack.Bytes.ToArray());
+        Assert.Equal("image/jpeg", readBack.ContentType);
         var versioning = await client.GetBucketVersioningAsync(new GetBucketVersioningRequest
         {
             BucketName = configuration["ObjectStorage:SafeMediaBucket"]

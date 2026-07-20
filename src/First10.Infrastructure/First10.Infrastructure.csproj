@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Concentus.Oggfile" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
@@ -20,5 +21,11 @@
 
   <ItemGroup>
     <ProjectReference Include="../First10.Modules/First10.Modules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../../data/corridors/berger-mowe.geojson">
+      <LogicalName>First10.Infrastructure.data.corridors.berger-mowe.geojson</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

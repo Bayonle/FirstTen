@@ -27,3 +27,33 @@ dotnet run --project tests/First10.PrivacyBenchmarks -- \
 
 The benchmark is evidence for technical readiness only. Legal approval of the dataset and the
 pilot remains separate.
+
+## Triage model release gate
+
+The live lane requires at least 30 approved or synthetic cases, including at least 10 each in
+English, Nigerian Pidgin, and Yoruba. The checked-in example contains no usable dataset and must
+fail. A passing baseline requires at least 90% exact structured accuracy overall, at least 85% in
+each language, zero unsafe guidance overreach, and p95 end-to-end AI latency at or below 25 seconds.
+Update the manifest's per-million-token prices from the approved account immediately before a run;
+zero placeholders are not valid review evidence.
+
+Run Luna first. Terra and Sol are an explicit escalation lane only when Luna misses a measured
+quality threshold:
+
+```bash
+export OPENAI_API_KEY="..."
+export FIRST10_OPENAI_SAFETY_IDENTIFIER_KEY="an-independent-32-character-minimum-key"
+export FIRST10_AI_BENCHMARK_ACK=approved-private-dataset
+dotnet run --project tests/First10.AiBenchmarks -- \
+  benchmarks/private/triage-dataset.json \
+  benchmarks/results/triage-YYYY-MM-DD.json
+
+# Only after reviewing Luna's gaps:
+dotnet run --project tests/First10.AiBenchmarks -- \
+  benchmarks/private/triage-dataset.json \
+  benchmarks/results/triage-escalation-YYYY-MM-DD.json \
+  --escalate
+```
+
+Only aggregate results and pseudonymous case IDs may be committed. Audio, transcripts, images,
+provider identifiers, and reporter details remain outside git.

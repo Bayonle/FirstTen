@@ -3,6 +3,7 @@ using First10.Modules.BuildingBlocks.Persistence;
 using First10.Modules.Incidents;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
+using First10.Modules.Intake.Triage;
 using First10.Modules.IdentityAudit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
@@ -28,6 +29,12 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
     public DbSet<IntakeRecoveryItem> IntakeRecoveryItems => Set<IntakeRecoveryItem>();
 
     public DbSet<IntakeMediaAsset> IntakeMediaAssets => Set<IntakeMediaAsset>();
+
+    public DbSet<TriageCase> TriageCases => Set<TriageCase>();
+
+    public DbSet<TriageAssessment> TriageAssessments => Set<TriageAssessment>();
+
+    public DbSet<ManualTriageAlert> ManualTriageAlerts => Set<ManualTriageAlert>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

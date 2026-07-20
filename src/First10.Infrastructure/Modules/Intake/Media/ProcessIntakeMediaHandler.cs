@@ -3,6 +3,7 @@ using First10.Infrastructure.Persistence;
 using First10.Modules.IdentityAudit;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
+using First10.Modules.Intake.Triage;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 
@@ -23,6 +24,19 @@ public sealed class WolverineMediaDegradationPublisher(IMessageBus bus) : IMedia
         bus.PublishAsync(message);
 }
 
+public interface ITriageKickoffPublisher
+{
+    ValueTask PublishAsync(TryTriageSession message, CancellationToken cancellationToken = default);
+}
+
+public sealed class WolverineTriageKickoffPublisher(IMessageBus bus) : ITriageKickoffPublisher
+{
+    public ValueTask PublishAsync(
+        TryTriageSession message,
+        CancellationToken cancellationToken = default) =>
+        bus.PublishAsync(message);
+}
+
 public static class ProcessIntakeMediaHandler
 {
     public static async Task Handle(
@@ -30,6 +44,7 @@ public static class ProcessIntakeMediaHandler
         First10DbContext database,
         MediaPrivacyPipeline pipeline,
         IMediaDegradationPublisher degradationPublisher,
+        ITriageKickoffPublisher triageKickoffPublisher,
         CancellationToken cancellationToken)
     {
         var session = await database.GuidedIntakeSessions
@@ -82,6 +97,9 @@ public static class ProcessIntakeMediaHandler
                 DateTimeOffset.UtcNow,
                 stored.ExpiresAtUtc);
             await AppendAuditAsync(database, asset, "intake.media.sanitized", cancellationToken);
+            await triageKickoffPublisher.PublishAsync(
+                new TryTriageSession(session.Id),
+                cancellationToken);
         }
         catch (MediaPrivacyException exception)
         {

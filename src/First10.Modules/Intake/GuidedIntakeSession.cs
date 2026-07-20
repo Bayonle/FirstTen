@@ -16,7 +16,8 @@ public enum IntakePrompt
     RequestLocation = 4,
     RemindLocation = 5,
     ContinueWithoutImage = 6,
-    ContinueWithoutAudio = 7
+    ContinueWithoutAudio = 7,
+    ManualReviewFallback = 8
 }
 
 public enum IntakeGap

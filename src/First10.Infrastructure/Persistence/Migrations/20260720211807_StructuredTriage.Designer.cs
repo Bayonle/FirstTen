@@ -3,6 +3,7 @@ using System;
 using First10.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace First10.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(First10DbContext))]
-    partial class First10DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260720211807_StructuredTriage")]
+    partial class StructuredTriage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -688,16 +691,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<double?>("LocationConfidence")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("LocationEvidenceReference")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<bool>("LocationFromPin")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("LocationPhrase")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
@@ -709,21 +702,6 @@ namespace First10.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ResolvedDirection")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("ResolvedLandmarkId")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<double?>("ResolvedLatitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<double?>("ResolvedLongitude")
-                        .HasColumnType("double precision");
 
                     b.Property<string>("Severity")
                         .IsRequired()
@@ -755,7 +733,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int>("AuthoritativeVersion")
-                        .IsConcurrencyToken()
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
@@ -774,7 +751,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Status")
-                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");

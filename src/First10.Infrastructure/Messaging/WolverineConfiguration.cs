@@ -5,6 +5,7 @@ using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
 using First10.Infrastructure.Modules.Intake.Media;
 using First10.Infrastructure.Modules.Intake;
+using First10.Modules.Intake.Triage;
 
 namespace First10.Infrastructure.Messaging;
 
@@ -32,6 +33,8 @@ public static class WolverineConfiguration
         options.PublishMessage<ProcessIntakeMedia>().ToPostgresqlQueue(First10Queues.MediaAndAi);
         options.PublishMessage<MediaProcessingDegraded>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<DeleteExpiredMedia>().ToPostgresqlQueue(First10Queues.Maintenance);
+        options.PublishMessage<EnforceTriageDeadline>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<TryTriageSession>().ToPostgresqlQueue(First10Queues.MediaAndAi);
 
         if (role is First10RuntimeRole.Api)
         {

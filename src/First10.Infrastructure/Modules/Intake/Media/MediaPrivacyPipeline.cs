@@ -62,6 +62,38 @@ public interface ISafeMediaStore
     Task DeleteAsync(string objectKey, CancellationToken cancellationToken = default);
 }
 
+public sealed class SafeMediaContent(byte[] bytes, string contentType) : IDisposable
+{
+    private byte[]? _bytes = bytes;
+
+    public ReadOnlyMemory<byte> Bytes => _bytes is null
+        ? throw new ObjectDisposedException(nameof(SafeMediaContent))
+        : _bytes;
+
+    public string ContentType { get; } = contentType;
+
+    public void Dispose()
+    {
+        if (_bytes is null)
+        {
+            return;
+        }
+
+        System.Security.Cryptography.CryptographicOperations.ZeroMemory(_bytes);
+        _bytes = null;
+    }
+}
+
+public interface ISafeMediaReader
+{
+    Task<SafeMediaContent> ReadAsync(
+        Guid assetId,
+        string objectKey,
+        string contentType,
+        long expectedPlaintextLength,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class MediaPrivacyPipeline(
     ProviderMediaDownloader downloader,
     IImageRedactor imageRedactor,

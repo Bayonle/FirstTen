@@ -1,0 +1,7 @@
+{
+  "type": "FeatureCollection",
+  "name": "berger-mowe",
+  "review_status": "pending_frsc_review",
+  "review_note": "Operational coordinates and aliases must be supplied and signed off by the FRSC corridor advisor before landmark resolution is enabled.",
+  "features": []
+}
