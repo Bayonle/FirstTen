@@ -1,8 +1,11 @@
 using First10.Infrastructure.Modules.IdentityAudit;
 using First10.Infrastructure.Persistence;
+using First10.Modules.BuildingBlocks.Contracts;
 using First10.Modules.IdentityAudit;
 using First10.Modules.Incidents;
+using First10.Modules.Recognition;
 using Microsoft.EntityFrameworkCore;
+using Wolverine;
 
 namespace First10.Infrastructure.Modules.Incidents;
 
@@ -73,7 +76,8 @@ public static class ReviewSingletonIncidentHandler
 
 public sealed class SingletonIncidentDecisionProcessor(
     First10DbContext database,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IMessageBus? bus = null)
 {
     public async Task<bool> DecideAsync(
         DecideSingletonIncident command,
@@ -101,7 +105,9 @@ public sealed class SingletonIncidentDecisionProcessor(
             return false;
         }
 
-        var incident = await database.Incidents.SingleOrDefaultAsync(
+        var incident = await database.Incidents
+            .Include(x => x.SourceReports)
+            .SingleOrDefaultAsync(
             x => x.Id == command.IncidentId,
             cancellationToken);
         var now = timeProvider.GetUtcNow();
@@ -147,6 +153,37 @@ public sealed class SingletonIncidentDecisionProcessor(
             }),
             cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
+        if (command.Decision == SingletonReviewDecision.Verify && bus is not null)
+        {
+            var reportIds = incident.SourceReports.Select(x => x.ReportId).ToArray();
+            var triageCases = await database.TriageCases
+                .Include(x => x.Assessments)
+                .Where(x => reportIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+            var sessionIds = triageCases.Values.Select(x => x.SessionId).ToArray();
+            var sessions = await database.GuidedIntakeSessions
+                .Where(x => sessionIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+            foreach (var source in incident.SourceReports)
+            {
+                var triage = triageCases[source.ReportId];
+                var session = sessions[triage.SessionId];
+                var language = triage.AuthoritativeAssessmentId.HasValue
+                    ? triage.Assessments.Single(x => x.Id == triage.AuthoritativeAssessmentId.Value).Language.ToString()
+                    : "English";
+                await bus.PublishAsync(new ContributionDispatcherVerified(
+                    source.ReportId,
+                    incident.Id,
+                    source.ReportId,
+                    source.ReporterIndependenceKey,
+                    session.ContactReference,
+                    session.Channel.ToString(),
+                    language,
+                    ContributionRecognitionAward.NormalizeLga(command.ReviewedIncidentLga),
+                    now));
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return true;
     }

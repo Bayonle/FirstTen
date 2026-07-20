@@ -9,6 +9,8 @@ using First10.Modules.Intake.Triage;
 using First10.Modules.Incidents;
 using First10.Modules.Dispatch;
 using First10.Modules.Guidance;
+using First10.Modules.BuildingBlocks.Contracts;
+using First10.Modules.Recognition;
 
 namespace First10.Infrastructure.Messaging;
 
@@ -47,6 +49,9 @@ public static class WolverineConfiguration
         options.PublishMessage<InitialGuidanceRequested>().ToPostgresqlQueue(First10Queues.PriorityGuidance);
         options.PublishMessage<TransitionIncidentDispatch>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<DeliverGuidanceIntent>().ToPostgresqlQueue(First10Queues.Outbound);
+        options.PublishMessage<ContributionDispatcherVerified>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<SetRecognitionConsent>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<AdjustRecognitionAward>().ToPostgresqlQueue(First10Queues.FastIntake);
 
         if (role is First10RuntimeRole.Api)
         {

@@ -433,7 +433,8 @@ public sealed record DecideSingletonIncident(
     Guid IncidentId,
     SingletonReviewDecision Decision,
     string DecidedBy,
-    string? Reason);
+    string? Reason,
+    string? ReviewedIncidentLga = null);
 
 public sealed class IncidentSourceReport
 {

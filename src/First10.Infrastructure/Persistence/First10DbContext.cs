@@ -7,6 +7,7 @@ using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
 using First10.Modules.Intake.Triage;
 using First10.Modules.IdentityAudit;
+using First10.Modules.Recognition;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -67,6 +68,14 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
     public DbSet<GuidanceTemplateAsset> GuidanceTemplateAssets => Set<GuidanceTemplateAsset>();
 
     public DbSet<GuidanceIntent> GuidanceIntents => Set<GuidanceIntent>();
+
+    public DbSet<ContributionRecognitionAward> ContributionRecognitionAwards => Set<ContributionRecognitionAward>();
+
+    public DbSet<RecognitionConsentDecision> RecognitionConsentDecisions => Set<RecognitionConsentDecision>();
+
+    public DbSet<RecognitionAwardAdjustment> RecognitionAwardAdjustments => Set<RecognitionAwardAdjustment>();
+
+    public DbSet<RecognitionNotificationIntent> RecognitionNotificationIntents => Set<RecognitionNotificationIntent>();
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
