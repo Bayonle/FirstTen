@@ -1,0 +1,15 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../First10.Api/First10.Api.csproj" IsAspireProjectResource="true" />
+    <ProjectReference Include="../First10.Worker/First10.Worker.csproj" IsAspireProjectResource="true" />
+  </ItemGroup>
+</Project>

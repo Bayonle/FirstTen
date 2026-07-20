@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../First10.Modules/First10.Modules.csproj" />
+  </ItemGroup>
+</Project>
