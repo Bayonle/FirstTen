@@ -1,0 +1,9 @@
+{
+  "update_id": 700001,
+  "message": {
+    "message_id": 101,
+    "date": 1784558400,
+    "chat": { "id": 99887766, "type": "private" },
+    "voice": { "file_id": "tg-voice-handle", "duration": 8, "mime_type": "audio/ogg" }
+  }
+}

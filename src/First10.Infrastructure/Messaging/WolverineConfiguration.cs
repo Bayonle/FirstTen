@@ -1,6 +1,7 @@
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
+using First10.Modules.Intake;
 
 namespace First10.Infrastructure.Messaging;
 
@@ -20,6 +21,9 @@ public static class WolverineConfiguration
             .AutoProvision();
         options.UseEntityFrameworkCoreTransactions();
         options.Policies.AutoApplyTransactions();
+        options.PublishMessage<AcceptInboundEnvelope>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<RemindMissingLocation>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<ExpireGuidedSession>().ToPostgresqlQueue(First10Queues.FastIntake);
 
         if (role is First10RuntimeRole.Api)
         {

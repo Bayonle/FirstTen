@@ -20,6 +20,8 @@ dotnet user-secrets --project src/First10.AppHost set Parameters:postgres-passwo
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-access-key first10-local
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-secret-key "choose-a-long-local-secret"
 dotnet user-secrets --project src/First10.AppHost set Parameters:bootstrap-secret "choose-a-different-long-local-secret"
+dotnet user-secrets --project src/First10.AppHost set Parameters:telegram-webhook-secret "choose-a-telegram-webhook-secret"
+dotnet user-secrets --project src/First10.AppHost set Parameters:reporter-pseudonym-key "choose-an-independent-32-character-minimum-key"
 ```
 
 Install the frontend dependencies once, then start the complete development topology:

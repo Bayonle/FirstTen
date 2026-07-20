@@ -2,7 +2,9 @@ using System.Reflection;
 using First10.Infrastructure.Messaging;
 using First10.Infrastructure.Persistence;
 using First10.Infrastructure.Modules.IdentityAudit;
+using First10.Infrastructure.Modules.Intake;
 using First10.Api.Auth;
+using First10.Api.Webhooks;
 using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +15,7 @@ var databaseConnection = builder.Configuration.GetConnectionString("first10")
 builder.Services.AddFirst10Persistence(databaseConnection);
 var requireSecureCookies = !builder.Environment.IsDevelopment();
 builder.Services.AddFirst10Identity(requireSecureCookies);
+builder.Services.AddFirst10Intake();
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
@@ -48,6 +51,8 @@ app.UseAntiforgery();
 app.MapOpenApi();
 app.MapDefaultEndpoints();
 app.MapFirst10Authentication();
+app.MapTelegramWebhook();
+app.MapWhatsAppWebhook();
 app.MapHub<OperationsHub>("/hubs/operations");
 app.MapGet("/api/dispatch/probe", () => Results.Ok(new { access = "dispatcher" }))
     .RequireAuthorization(IdentityConfiguration.DispatcherPolicy);

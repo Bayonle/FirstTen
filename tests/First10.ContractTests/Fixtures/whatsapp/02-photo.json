@@ -1,0 +1,20 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "waba-test",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": { "phone_number_id": "phone-number-id" },
+        "messages": [{
+          "from": "2348000000000",
+          "id": "wamid.photo-102",
+          "timestamp": "1784558405",
+          "type": "image",
+          "image": { "id": "wa-photo-handle", "mime_type": "image/jpeg" }
+        }]
+      }
+    }]
+  }]
+}

@@ -1,0 +1,9 @@
+{
+  "update_id": 700003,
+  "message": {
+    "message_id": 103,
+    "date": 1784558409,
+    "chat": { "id": 99887766, "type": "private" },
+    "location": { "latitude": 6.6018, "longitude": 3.3515 }
+  }
+}

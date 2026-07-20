@@ -17,7 +17,9 @@ public static class IdentityConfiguration
         this IServiceCollection services,
         bool requireSecureCookies = true)
     {
-        services.AddDataProtection().SetApplicationName("First10.Identity");
+        services.AddDataProtection()
+            .SetApplicationName("First10")
+            .PersistKeysToDbContext<First10DbContext>();
         services
             .AddIdentity<First10User, IdentityRole<Guid>>(options =>
             {

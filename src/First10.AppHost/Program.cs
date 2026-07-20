@@ -9,6 +9,8 @@ var database = builder
 var objectStorageAccessKey = builder.AddParameter("object-storage-access-key", secret: true);
 var objectStorageSecretKey = builder.AddParameter("object-storage-secret-key", secret: true);
 var bootstrapSecret = builder.AddParameter("bootstrap-secret", secret: true);
+var telegramWebhookSecret = builder.AddParameter("telegram-webhook-secret", secret: true);
+var reporterPseudonymKey = builder.AddParameter("reporter-pseudonym-key", secret: true);
 
 var objectStorage = builder
     .AddContainer("object-storage", "minio/minio")
@@ -23,6 +25,9 @@ var api = builder
     .AddProject<Projects.First10_Api>("api")
     .WithReference(database)
     .WithEnvironment("Security__BootstrapSecret", bootstrapSecret)
+    .WithEnvironment("Security__ReporterPseudonymKey", reporterPseudonymKey)
+    .WithEnvironment("Security__ReporterContactKeyVersion", "local-v1")
+    .WithEnvironment("Channels__Telegram__WebhookSecret", telegramWebhookSecret)
     .WithEnvironment("ObjectStorage__Endpoint", objectStorage.GetEndpoint("s3"))
     .WaitFor(database)
     .WaitFor(objectStorage);
@@ -30,6 +35,8 @@ var api = builder
 builder
     .AddProject<Projects.First10_Worker>("worker")
     .WithReference(database)
+    .WithEnvironment("Security__ReporterPseudonymKey", reporterPseudonymKey)
+    .WithEnvironment("Security__ReporterContactKeyVersion", "local-v1")
     .WithEnvironment("ObjectStorage__Endpoint", objectStorage.GetEndpoint("s3"))
     .WaitFor(database)
     .WaitFor(objectStorage);
