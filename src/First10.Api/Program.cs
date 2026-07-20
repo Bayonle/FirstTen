@@ -1,8 +1,18 @@
 using System.Reflection;
+using First10.Infrastructure.Messaging;
+using First10.Infrastructure.Persistence;
+using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+var databaseConnection = builder.Configuration.GetConnectionString("first10")
+    ?? throw new InvalidOperationException("Connection string 'first10' is required.");
+builder.Services.AddFirst10Persistence(databaseConnection);
+builder.Host.UseWolverine(options => WolverineConfiguration.Configure(
+    options,
+    databaseConnection,
+    First10RuntimeRole.Api));
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

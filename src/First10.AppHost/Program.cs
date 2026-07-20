@@ -1,7 +1,8 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
+var postgresPassword = builder.AddParameter("postgres-password", secret: true);
 var database = builder
-    .AddPostgres("postgres")
+    .AddPostgres("postgres", password: postgresPassword)
     .WithDataVolume("first10-postgres-data")
     .AddDatabase("first10");
 

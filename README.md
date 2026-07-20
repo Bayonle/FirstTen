@@ -12,9 +12,11 @@ Prerequisites:
 - Node.js 22.14 or newer
 - Docker-compatible container runtime
 
-Set the local object-storage credentials without committing them:
+Set stable local service credentials without committing them. Keeping the PostgreSQL password
+stable is required when reusing the named development volume:
 
 ```sh
+dotnet user-secrets --project src/First10.AppHost set Parameters:postgres-password "choose-a-long-local-secret"
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-access-key first10-local
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-secret-key "choose-a-long-local-secret"
 ```
