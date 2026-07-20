@@ -12,9 +12,11 @@ var bootstrapSecret = builder.AddParameter("bootstrap-secret", secret: true);
 var telegramWebhookSecret = builder.AddParameter("telegram-webhook-secret", secret: true);
 var telegramBotToken = builder.AddParameter("telegram-bot-token", secret: true);
 var reporterPseudonymKey = builder.AddParameter("reporter-pseudonym-key", secret: true);
+var mediaEncryptionKey = builder.AddParameter("media-encryption-key", secret: true);
+var faceRedactionModelPath = builder.AddParameter("face-redaction-model-path");
 
 var objectStorage = builder
-    .AddContainer("object-storage", "minio/minio")
+    .AddContainer("object-storage", "minio/minio", "RELEASE.2025-09-07T16-13-09Z")
     .WithArgs("server", "/data", "--console-address", ":9001")
     .WithEnvironment("MINIO_ROOT_USER", objectStorageAccessKey)
     .WithEnvironment("MINIO_ROOT_PASSWORD", objectStorageSecretKey)
@@ -39,7 +41,12 @@ builder
     .WithEnvironment("Security__ReporterPseudonymKey", reporterPseudonymKey)
     .WithEnvironment("Security__ReporterContactKeyVersion", "local-v1")
     .WithEnvironment("Channels__Telegram__BotToken", telegramBotToken)
+    .WithEnvironment("ObjectStorage__AccessKey", objectStorageAccessKey)
+    .WithEnvironment("ObjectStorage__SecretKey", objectStorageSecretKey)
     .WithEnvironment("ObjectStorage__Endpoint", objectStorage.GetEndpoint("s3"))
+    .WithEnvironment("MediaEncryption__ActiveKeyVersion", "local-v1")
+    .WithEnvironment("MediaEncryption__Keys__local-v1", mediaEncryptionKey)
+    .WithEnvironment("Models__FaceRedaction__Path", faceRedactionModelPath)
     .WaitFor(database)
     .WaitFor(objectStorage);
 

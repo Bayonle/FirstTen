@@ -2,6 +2,8 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 using First10.Modules.Intake;
+using First10.Modules.Intake.Media;
+using First10.Infrastructure.Modules.Intake.Media;
 using First10.Infrastructure.Modules.Intake;
 
 namespace First10.Infrastructure.Messaging;
@@ -27,6 +29,9 @@ public static class WolverineConfiguration
         options.PublishMessage<RemindMissingLocation>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<ExpireGuidedSession>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<DeliverIntakePrompt>().ToPostgresqlQueue(First10Queues.Outbound);
+        options.PublishMessage<ProcessIntakeMedia>().ToPostgresqlQueue(First10Queues.MediaAndAi);
+        options.PublishMessage<MediaProcessingDegraded>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<DeleteExpiredMedia>().ToPostgresqlQueue(First10Queues.Maintenance);
 
         if (role is First10RuntimeRole.Api)
         {
@@ -35,7 +40,7 @@ public static class WolverineConfiguration
         }
 
         options.ListenToPostgresqlQueue(First10Queues.FastIntake);
-        options.ListenToPostgresqlQueue(First10Queues.MediaAndAi);
+        options.ListenToPostgresqlQueue(First10Queues.MediaAndAi).MaximumParallelMessages(2);
         options.ListenToPostgresqlQueue(First10Queues.Outbound);
         options.ListenToPostgresqlQueue(First10Queues.Maintenance);
     }

@@ -1,5 +1,6 @@
 using First10.Infrastructure.Persistence;
 using First10.Modules.Intake;
+using First10.Modules.Intake.Media;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using System.Data;
@@ -11,10 +12,26 @@ public static class AcceptInboundEnvelopeHandler
     public static async Task Handle(
         AcceptInboundEnvelope command,
         GuidedIntakeProcessor processor,
+        First10DbContext database,
         IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var outcome = await processor.ApplyAsync(command.Envelope, cancellationToken);
+        if (command.Envelope.ContentKind is IntakeContentKind.Photo or IntakeContentKind.Voice)
+        {
+            var inputId = await database.GuidedIntakeSessions
+                .Where(x => x.Channel == command.Envelope.Channel
+                            && x.ContactReference == command.Envelope.ContactReference)
+                .SelectMany(x => x.Inputs)
+                .Where(x => x.ProviderMessageId == command.Envelope.ProviderMessageId)
+                .Select(x => x.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (inputId != Guid.Empty)
+            {
+                await bus.PublishAsync(new ProcessIntakeMedia(inputId));
+            }
+        }
+
         if (outcome is not null)
         {
             foreach (var promptIntentId in outcome.PromptIntentIds)

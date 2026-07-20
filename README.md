@@ -23,6 +23,16 @@ dotnet user-secrets --project src/First10.AppHost set Parameters:bootstrap-secre
 dotnet user-secrets --project src/First10.AppHost set Parameters:telegram-webhook-secret "choose-a-telegram-webhook-secret"
 dotnet user-secrets --project src/First10.AppHost set Parameters:telegram-bot-token "paste-the-BotFather-token"
 dotnet user-secrets --project src/First10.AppHost set Parameters:reporter-pseudonym-key "choose-an-independent-32-character-minimum-key"
+dotnet user-secrets --project src/First10.AppHost set Parameters:media-encryption-key "paste-a-base64-encoded-32-byte-key"
+dotnet user-secrets --project src/First10.AppHost set Parameters:face-redaction-model-path "/absolute/path/to/FirstTen/models/face_detection_yunet_2026may.onnx"
+```
+
+Generate the media key with `openssl rand -base64 32`; do not reuse the reporter pseudonym key.
+
+Fetch and checksum the pinned MIT-licensed face detector before first startup:
+
+```bash
+./scripts/fetch-face-redaction-model.sh
 ```
 
 Install the frontend dependencies once, then start the complete development topology:

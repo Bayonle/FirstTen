@@ -2,6 +2,7 @@ using First10.Infrastructure.Modules.IdentityAudit;
 using First10.Modules.BuildingBlocks.Persistence;
 using First10.Modules.Incidents;
 using First10.Modules.Intake;
+using First10.Modules.Intake.Media;
 using First10.Modules.IdentityAudit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
@@ -25,6 +26,8 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
     public DbSet<IntakePromptIntent> IntakePromptIntents => Set<IntakePromptIntent>();
 
     public DbSet<IntakeRecoveryItem> IntakeRecoveryItems => Set<IntakeRecoveryItem>();
+
+    public DbSet<IntakeMediaAsset> IntakeMediaAssets => Set<IntakeMediaAsset>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

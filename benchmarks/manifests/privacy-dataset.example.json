@@ -1,0 +1,22 @@
+{
+  "version": "example-v1",
+  "cases": [
+    {
+      "id": "consented-or-synthetic-001",
+      "file": "../private/images/001.jpg",
+      "categories": ["rotated", "partial", "frame-edge"],
+      "faces": [
+        { "x": 24, "y": 16, "width": 80, "height": 92 }
+      ]
+    },
+    {
+      "id": "consented-or-synthetic-002",
+      "file": "../private/images/002.jpg",
+      "categories": ["multiple", "low-light", "helmet"],
+      "faces": [
+        { "x": 40, "y": 30, "width": 60, "height": 72 },
+        { "x": 180, "y": 44, "width": 54, "height": 66 }
+      ]
+    }
+  ]
+}
