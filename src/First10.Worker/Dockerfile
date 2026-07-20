@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /source
-COPY global.json Directory.Build.props Directory.Packages.props ./
+COPY global.json Directory.Build.props Directory.Packages.props .editorconfig ./
 COPY src/First10.Worker/First10.Worker.csproj src/First10.Worker/
 COPY src/First10.Infrastructure/First10.Infrastructure.csproj src/First10.Infrastructure/
 COPY src/First10.Modules/First10.Modules.csproj src/First10.Modules/
