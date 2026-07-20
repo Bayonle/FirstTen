@@ -7,6 +7,7 @@ public static class First10Queues
     public const string Outbound = "outbound";
     public const string Maintenance = "maintenance";
     public const string UiNotifications = "ui-notifications";
+    public const string PriorityGuidance = "priority-guidance";
 }
 
 public enum First10RuntimeRole

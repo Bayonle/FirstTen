@@ -1,0 +1,32 @@
+{
+  "templateKey": "example-not-clinically-approved",
+  "enabled": false,
+  "purpose": "InitialSafety",
+  "category": "RoadTrafficCollision",
+  "severityBand": "Conservative",
+  "policyVersion": "example-only",
+  "notice": "DO NOT ENABLE. Placeholder wording and audio references require clinical review.",
+  "locales": [
+    {
+      "language": "English",
+      "exactText": "EXAMPLE ONLY - clinical wording required.",
+      "textSha256": "1e86a79e2f5b055cb13bb5345bfaf46dbef89460a70427195bdde76fc4bf7724",
+      "voiceAsset": "example/en.ogg",
+      "voiceSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "language": "NigerianPidgin",
+      "exactText": "EXAMPLE ONLY - clinical wording required.",
+      "textSha256": "1e86a79e2f5b055cb13bb5345bfaf46dbef89460a70427195bdde76fc4bf7724",
+      "voiceAsset": "example/pcm.ogg",
+      "voiceSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "language": "Yoruba",
+      "exactText": "EXAMPLE ONLY - clinical wording required.",
+      "textSha256": "1e86a79e2f5b055cb13bb5345bfaf46dbef89460a70427195bdde76fc4bf7724",
+      "voiceAsset": "example/yo.ogg",
+      "voiceSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

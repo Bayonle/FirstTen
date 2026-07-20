@@ -1,6 +1,8 @@
 using First10.Infrastructure.Modules.IdentityAudit;
 using First10.Modules.BuildingBlocks.Persistence;
 using First10.Modules.Incidents;
+using First10.Modules.Dispatch;
+using First10.Modules.Guidance;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
 using First10.Modules.Intake.Triage;
@@ -55,6 +57,16 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
     public DbSet<IncidentObservation> IncidentObservations => Set<IncidentObservation>();
 
     public DbSet<IncidentLocation> IncidentLocations => Set<IncidentLocation>();
+
+    public DbSet<IncidentDispatch> IncidentDispatches => Set<IncidentDispatch>();
+
+    public DbSet<DispatchTransition> DispatchTransitions => Set<DispatchTransition>();
+
+    public DbSet<GuidanceTemplateSet> GuidanceTemplateSets => Set<GuidanceTemplateSet>();
+
+    public DbSet<GuidanceTemplateAsset> GuidanceTemplateAssets => Set<GuidanceTemplateAsset>();
+
+    public DbSet<GuidanceIntent> GuidanceIntents => Set<GuidanceIntent>();
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 

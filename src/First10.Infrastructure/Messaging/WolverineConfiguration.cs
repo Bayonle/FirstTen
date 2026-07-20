@@ -7,6 +7,8 @@ using First10.Infrastructure.Modules.Intake.Media;
 using First10.Infrastructure.Modules.Intake;
 using First10.Modules.Intake.Triage;
 using First10.Modules.Incidents;
+using First10.Modules.Dispatch;
+using First10.Modules.Guidance;
 
 namespace First10.Infrastructure.Messaging;
 
@@ -42,6 +44,9 @@ public static class WolverineConfiguration
         options.PublishMessage<ApplyLateIncidentLocation>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<AppendIncidentObservation>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<DecideSingletonIncident>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<InitialGuidanceRequested>().ToPostgresqlQueue(First10Queues.PriorityGuidance);
+        options.PublishMessage<TransitionIncidentDispatch>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<DeliverGuidanceIntent>().ToPostgresqlQueue(First10Queues.Outbound);
 
         if (role is First10RuntimeRole.Api)
         {
@@ -52,6 +57,7 @@ public static class WolverineConfiguration
         options.ListenToPostgresqlQueue(First10Queues.FastIntake);
         options.ListenToPostgresqlQueue(First10Queues.MediaAndAi).MaximumParallelMessages(2);
         options.ListenToPostgresqlQueue(First10Queues.Outbound);
+        options.ListenToPostgresqlQueue(First10Queues.PriorityGuidance).MaximumParallelMessages(4);
         options.ListenToPostgresqlQueue(First10Queues.Maintenance);
     }
 }

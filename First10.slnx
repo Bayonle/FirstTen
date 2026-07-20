@@ -15,4 +15,7 @@
     <Project Path="tests/First10.PrivacyBenchmarks/First10.PrivacyBenchmarks.csproj" />
     <Project Path="tests/First10.UnitTests/First10.UnitTests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/First10.GuidanceAssets/First10.GuidanceAssets.csproj" />
+  </Folder>
 </Solution>

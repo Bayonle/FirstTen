@@ -12,5 +12,6 @@ RUN dotnet publish src/First10.Worker/First10.Worker.csproj --no-restore -c Rele
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish ./
+COPY assets/guidance /app/guidance
 USER $APP_UID
 ENTRYPOINT ["dotnet", "First10.Worker.dll"]

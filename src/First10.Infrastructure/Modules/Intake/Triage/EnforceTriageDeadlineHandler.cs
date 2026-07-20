@@ -5,12 +5,16 @@ using First10.Modules.IdentityAudit;
 using First10.Modules.Incidents;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Triage;
+using First10.Modules.Guidance;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 
 namespace First10.Infrastructure.Modules.Intake.Triage;
 
-public sealed record TriageDeadlineOutcome(Guid AlertId, Guid ReporterPromptIntentId);
+public sealed record TriageDeadlineOutcome(
+    Guid AlertId,
+    Guid ReporterPromptIntentId,
+    DateTimeOffset FirstReceiptDeadlineUtc);
 
 public sealed class TriageDeadlineProcessor(First10DbContext database)
 {
@@ -69,7 +73,7 @@ public sealed class TriageDeadlineProcessor(First10DbContext database)
             await transaction.CommitAsync(cancellationToken);
         }
 
-        return new TriageDeadlineOutcome(alert.Id, prompt.Id);
+        return new TriageDeadlineOutcome(alert.Id, prompt.Id, triageCase.DeadlineAtUtc);
     }
 }
 
@@ -89,6 +93,9 @@ public static class EnforceTriageDeadlineHandler
         {
             await bus.PublishAsync(new DeliverIntakePrompt(outcome.ReporterPromptIntentId));
             await bus.PublishAsync(new CreateOrMatchIncident(command.TriageCaseId));
+            await bus.PublishAsync(new InitialGuidanceRequested(
+                command.TriageCaseId,
+                outcome.FirstReceiptDeadlineUtc));
         }
     }
 }

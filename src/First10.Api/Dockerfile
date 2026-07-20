@@ -20,6 +20,7 @@ COPY --from=web-build /source/web/dist /app/publish/wwwroot
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish ./
+COPY assets/guidance /app/guidance
 USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "First10.Api.dll"]

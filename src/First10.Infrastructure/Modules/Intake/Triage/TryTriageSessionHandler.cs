@@ -9,6 +9,7 @@ using First10.Modules.Incidents;
 using First10.Modules.Intake;
 using First10.Modules.Intake.Media;
 using First10.Modules.Intake.Triage;
+using First10.Modules.Guidance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -44,7 +45,7 @@ public sealed class TriageSessionProcessor(
             var lateLocation = await TryApplyReporterPinAsync(triageCase, cancellationToken);
             return lateLocation is null
                 ? null
-                : new TriageProcessingOutcome(triageCase.Id, false, lateLocation);
+                : new TriageProcessingOutcome(triageCase.Id, false, lateLocation, triageCase.DeadlineAtUtc);
         }
 
         var now = timeProvider.GetUtcNow();
@@ -145,7 +146,7 @@ public sealed class TriageSessionProcessor(
                 timeProvider.GetUtcNow(),
                 session.Id,
                 cancellationToken);
-            return new TriageProcessingOutcome(triageCase.Id, authoritative, null);
+            return new TriageProcessingOutcome(triageCase.Id, authoritative, null, triageCase.DeadlineAtUtc);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -281,14 +282,14 @@ public sealed class TriageSessionProcessor(
         }
     }
 
-    private HashSet<GuidanceCategory> ReadEnabledGuidanceCategories()
+    private HashSet<First10.Modules.Intake.Triage.GuidanceCategory> ReadEnabledGuidanceCategories()
     {
         var values = configuration.GetSection("Guidance:EnabledCategories").Get<string[]>() ?? [];
         return values
-            .Select(value => Enum.TryParse<GuidanceCategory>(value, true, out var category)
+            .Select(value => Enum.TryParse<First10.Modules.Intake.Triage.GuidanceCategory>(value, true, out var category)
                 ? category
-                : GuidanceCategory.None)
-            .Where(category => category != GuidanceCategory.None)
+                : First10.Modules.Intake.Triage.GuidanceCategory.None)
+            .Where(category => category != First10.Modules.Intake.Triage.GuidanceCategory.None)
             .ToHashSet();
     }
 
@@ -356,7 +357,8 @@ public sealed record LateLocationEvidence(
 public sealed record TriageProcessingOutcome(
     Guid TriageCaseId,
     bool Authoritative,
-    LateLocationEvidence? LateLocation);
+    LateLocationEvidence? LateLocation,
+    DateTimeOffset FirstReceiptDeadlineUtc);
 
 public static class TryTriageSessionHandler
 {
@@ -370,6 +372,9 @@ public static class TryTriageSessionHandler
         if (outcome?.Authoritative == true)
         {
             await bus.PublishAsync(new CreateOrMatchIncident(outcome.TriageCaseId));
+            await bus.PublishAsync(new InitialGuidanceRequested(
+                outcome.TriageCaseId,
+                outcome.FirstReceiptDeadlineUtc));
         }
         else if (outcome?.LateLocation is not null)
         {
