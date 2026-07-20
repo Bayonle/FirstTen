@@ -1,5 +1,6 @@
 using First10.Infrastructure.Modules.Intake.Channels;
 using First10.Infrastructure.Modules.Intake.Channels.WhatsApp;
+using System.Text.Json;
 
 namespace First10.Api.Webhooks;
 
@@ -28,6 +29,7 @@ public static class WhatsAppWebhookEndpoints
             IConfiguration configuration,
             WhatsAppInboundAdapter adapter,
             ChannelWebhookIngress ingress,
+            ChannelDeliveryReceiptProcessor deliveryReceipts,
             CancellationToken cancellationToken) =>
         {
             var body = await WebhookSecurity.ReadBoundedAsync(request, cancellationToken);
@@ -36,17 +38,32 @@ public static class WhatsAppWebhookEndpoints
                 return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
             }
 
-            if (!WebhookSecurity.MetaSignatureMatches(
+            if (!WebhookSecurity.MetaSignatureMatchesWithOverlap(
                     configuration["Channels:WhatsApp:AppSecret"],
+                    configuration["Channels:WhatsApp:PreviousAppSecret"],
+                    configuration["Channels:WhatsApp:PreviousAppSecretValidUntilUtc"],
                     request.Headers["X-Hub-Signature-256"].FirstOrDefault(),
-                    body))
+                    body,
+                    DateTimeOffset.UtcNow))
             {
                 return Results.Unauthorized();
             }
 
-            foreach (var message in adapter.Parse(body))
+            try
             {
-                await ingress.TryAcceptAsync(message, cancellationToken);
+                foreach (var message in adapter.Parse(body))
+                {
+                    await ingress.TryAcceptAsync(message, cancellationToken);
+                }
+
+                foreach (var receipt in WhatsAppInboundAdapter.ParseDeliveryReceipts(body))
+                {
+                    await deliveryReceipts.ApplyAsync(receipt, cancellationToken);
+                }
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest(new { error = "Invalid WhatsApp webhook payload." });
             }
 
             return Results.Ok();

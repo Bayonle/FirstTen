@@ -27,11 +27,12 @@ public sealed class ChannelParityTests
 
         var telegramSession = Replay(telegramEnvelopes);
         var whatsappSession = Replay(whatsappEnvelopes);
-        Assert.Equal(telegramSession.Status, whatsappSession.Status);
-        Assert.Equal(telegramSession.VisibleGaps, whatsappSession.VisibleGaps);
+        Assert.Equal(telegramSession.InitialPrompts, whatsappSession.InitialPrompts);
+        Assert.Equal(telegramSession.Session.Status, whatsappSession.Session.Status);
+        Assert.Equal(telegramSession.Session.VisibleGaps, whatsappSession.Session.VisibleGaps);
         Assert.Equal(
-            telegramSession.Inputs.Select(x => (x.ContentKind, x.OccurredAtUtc)),
-            whatsappSession.Inputs.Select(x => (x.ContentKind, x.OccurredAtUtc)));
+            telegramSession.Session.Inputs.Select(x => (x.ContentKind, x.OccurredAtUtc)),
+            whatsappSession.Session.Inputs.Select(x => (x.ContentKind, x.OccurredAtUtc)));
     }
 
     [Fact]
@@ -43,6 +44,20 @@ public sealed class ChannelParityTests
         Assert.Equal(ContactReference, envelope.ContactReference);
         Assert.Equal("fixture-pseudonym", envelope.ReporterKey);
         Assert.DoesNotContain(providerMessage.ProviderAddress, System.Text.Json.JsonSerializer.Serialize(envelope), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WhatsAppDeliveryFixtureMapsDeliveredStatusWithoutPayloadDetails()
+    {
+        var payload = """
+            {"entry":[{"changes":[{"value":{"statuses":[{"id":"wamid.outbound-1","status":"delivered","timestamp":"1784558415","recipient_id":"2348000000000"}]}}]}]}
+            """u8.ToArray();
+
+        var receipt = Assert.Single(WhatsAppInboundAdapter.ParseDeliveryReceipts(payload));
+
+        Assert.Equal("wamid.outbound-1", receipt.ProviderMessageId);
+        Assert.Equal(ChannelDeliveryStatus.Delivered, receipt.Status);
+        Assert.Null(receipt.FailureCode);
     }
 
     private static ProviderInboundMessage[] LoadStage(IChannelInboundAdapter adapter, string channel) =>
@@ -62,16 +77,23 @@ public sealed class ChannelParityTests
         InboundChannelEnvelope envelope) =>
         (envelope.ContentKind, envelope.OccurredAtUtc, envelope.Location);
 
-    private static GuidedIntakeSession Replay(InboundChannelEnvelope[] envelopes)
+    private static ReplayResult Replay(InboundChannelEnvelope[] envelopes)
     {
         var session = GuidedIntakeSession.Open(Guid.NewGuid(), envelopes[0], TimeSpan.FromMinutes(2));
+        var initialPrompts = new[] { IntakePrompt.Acknowledgement }
+            .Concat(session.PendingPrompts)
+            .ToArray();
         foreach (var envelope in envelopes.Skip(1))
         {
             Assert.True(session.TryAttach(envelope));
         }
 
-        return session;
+        return new ReplayResult(session, initialPrompts);
     }
+
+    private sealed record ReplayResult(
+        GuidedIntakeSession Session,
+        IReadOnlyList<IntakePrompt> InitialPrompts);
 
     private sealed class FixtureContactIdentityResolver : IContactIdentityResolver
     {

@@ -1,5 +1,6 @@
 using First10.Infrastructure.Modules.Intake.Channels;
 using First10.Infrastructure.Modules.Intake.Channels.Telegram;
+using System.Text.Json;
 
 namespace First10.Api.Webhooks;
 
@@ -14,9 +15,12 @@ public static class TelegramWebhookEndpoints
             ChannelWebhookIngress ingress,
             CancellationToken cancellationToken) =>
         {
-            if (!WebhookSecurity.SecretMatches(
+            if (!WebhookSecurity.SecretMatchesWithOverlap(
                     configuration["Channels:Telegram:WebhookSecret"],
-                    request.Headers["X-Telegram-Bot-Api-Secret-Token"].FirstOrDefault()))
+                    configuration["Channels:Telegram:PreviousWebhookSecret"],
+                    configuration["Channels:Telegram:PreviousWebhookSecretValidUntilUtc"],
+                    request.Headers["X-Telegram-Bot-Api-Secret-Token"].FirstOrDefault(),
+                    DateTimeOffset.UtcNow))
             {
                 return Results.Unauthorized();
             }
@@ -27,9 +31,16 @@ public static class TelegramWebhookEndpoints
                 return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
             }
 
-            foreach (var message in adapter.Parse(body))
+            try
             {
-                await ingress.TryAcceptAsync(message, cancellationToken);
+                foreach (var message in adapter.Parse(body))
+                {
+                    await ingress.TryAcceptAsync(message, cancellationToken);
+                }
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest(new { error = "Invalid Telegram webhook payload." });
             }
 
             return Results.Ok();

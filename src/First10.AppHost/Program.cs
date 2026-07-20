@@ -10,6 +10,7 @@ var objectStorageAccessKey = builder.AddParameter("object-storage-access-key", s
 var objectStorageSecretKey = builder.AddParameter("object-storage-secret-key", secret: true);
 var bootstrapSecret = builder.AddParameter("bootstrap-secret", secret: true);
 var telegramWebhookSecret = builder.AddParameter("telegram-webhook-secret", secret: true);
+var telegramBotToken = builder.AddParameter("telegram-bot-token", secret: true);
 var reporterPseudonymKey = builder.AddParameter("reporter-pseudonym-key", secret: true);
 
 var objectStorage = builder
@@ -37,6 +38,7 @@ builder
     .WithReference(database)
     .WithEnvironment("Security__ReporterPseudonymKey", reporterPseudonymKey)
     .WithEnvironment("Security__ReporterContactKeyVersion", "local-v1")
+    .WithEnvironment("Channels__Telegram__BotToken", telegramBotToken)
     .WithEnvironment("ObjectStorage__Endpoint", objectStorage.GetEndpoint("s3"))
     .WaitFor(database)
     .WaitFor(objectStorage);

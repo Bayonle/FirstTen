@@ -9,6 +9,7 @@ public enum IntakeLanguage
 
 public enum ChannelDeliveryStatus
 {
+    Pending = 0,
     Accepted = 1,
     Sent = 2,
     Delivered = 3,
@@ -26,6 +27,7 @@ public sealed class IntakePromptIntent
         Guid id,
         Guid sessionId,
         Guid contactReference,
+        IntakeChannel channel,
         IntakePrompt prompt,
         IntakeLanguage language,
         string catalogueVersion,
@@ -34,11 +36,12 @@ public sealed class IntakePromptIntent
         Id = id;
         SessionId = sessionId;
         ContactReference = contactReference;
+        Channel = channel;
         Prompt = prompt;
         Language = language;
         CatalogueVersion = catalogueVersion;
         CreatedAtUtc = createdAtUtc;
-        DeliveryStatus = ChannelDeliveryStatus.Accepted;
+        DeliveryStatus = ChannelDeliveryStatus.Pending;
     }
 
     public Guid Id { get; private set; }
@@ -46,6 +49,8 @@ public sealed class IntakePromptIntent
     public Guid SessionId { get; private set; }
 
     public Guid ContactReference { get; private set; }
+
+    public IntakeChannel Channel { get; private set; }
 
     public IntakePrompt Prompt { get; private set; }
 
@@ -57,6 +62,21 @@ public sealed class IntakePromptIntent
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
+    public string? ProviderMessageId { get; private set; }
+
+    public string? FailureCode { get; private set; }
+
+    public int AttemptCount { get; private set; }
+
+    public DateTimeOffset? LastAttemptAtUtc { get; private set; }
+
+    public DateTimeOffset? StatusChangedAtUtc { get; private set; }
+
+    public bool CanAttemptDelivery =>
+        AttemptCount < 3
+        && DeliveryStatus is ChannelDeliveryStatus.Pending
+            or ChannelDeliveryStatus.Failed;
+
     public static IntakePromptIntent Create(
         GuidedIntakeSession session,
         IntakePrompt prompt,
@@ -66,10 +86,78 @@ public sealed class IntakePromptIntent
             Guid.NewGuid(),
             session.Id,
             session.ContactReference,
+            session.Channel,
             prompt,
             language,
             IntakeMessageCatalogue.Version,
             createdAtUtc);
+
+    public bool TryMarkProviderAccepted(string providerMessageId, DateTimeOffset occurredAtUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerMessageId);
+        if (!CanAttemptDelivery)
+        {
+            return false;
+        }
+
+        AttemptCount++;
+        LastAttemptAtUtc = occurredAtUtc;
+        StatusChangedAtUtc = occurredAtUtc;
+        ProviderMessageId = providerMessageId;
+        FailureCode = null;
+        DeliveryStatus = ChannelDeliveryStatus.Accepted;
+        return true;
+    }
+
+    public bool TryMarkFailed(string failureCode, DateTimeOffset occurredAtUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCode);
+        if (!CanAttemptDelivery)
+        {
+            return false;
+        }
+
+        AttemptCount++;
+        LastAttemptAtUtc = occurredAtUtc;
+        StatusChangedAtUtc = occurredAtUtc;
+        FailureCode = failureCode;
+        DeliveryStatus = ChannelDeliveryStatus.Failed;
+        return true;
+    }
+
+    public bool TryMarkUnknown(string failureCode, DateTimeOffset occurredAtUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCode);
+        if (!CanAttemptDelivery)
+        {
+            return false;
+        }
+
+        AttemptCount++;
+        LastAttemptAtUtc = occurredAtUtc;
+        StatusChangedAtUtc = occurredAtUtc;
+        FailureCode = failureCode;
+        DeliveryStatus = ChannelDeliveryStatus.Unknown;
+        return true;
+    }
+
+    public bool TryApplyReceipt(
+        ChannelDeliveryStatus status,
+        DateTimeOffset occurredAtUtc,
+        string? failureCode = null)
+    {
+        if (DeliveryStatus == status
+            || DeliveryStatus == ChannelDeliveryStatus.Delivered
+            || status is ChannelDeliveryStatus.Pending or ChannelDeliveryStatus.Accepted)
+        {
+            return false;
+        }
+
+        DeliveryStatus = status;
+        StatusChangedAtUtc = occurredAtUtc;
+        FailureCode = status == ChannelDeliveryStatus.Failed ? failureCode ?? "provider_failed" : null;
+        return true;
+    }
 }
 
 public static class IntakeMessageCatalogue
@@ -102,3 +190,5 @@ public static class IntakeMessageCatalogue
 public sealed record RemindMissingLocation(Guid SessionId);
 
 public sealed record ExpireGuidedSession(Guid SessionId);
+
+public sealed record DeliverIntakePrompt(Guid IntentId);

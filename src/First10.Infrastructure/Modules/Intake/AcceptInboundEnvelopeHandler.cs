@@ -17,6 +17,11 @@ public static class AcceptInboundEnvelopeHandler
         var outcome = await processor.ApplyAsync(command.Envelope, cancellationToken);
         if (outcome is not null)
         {
+            foreach (var promptIntentId in outcome.PromptIntentIds)
+            {
+                await bus.PublishAsync(new DeliverIntakePrompt(promptIntentId));
+            }
+
             await bus.ScheduleAsync(
                 new RemindMissingLocation(outcome.SessionId),
                 outcome.LocationReminderDueAtUtc);
@@ -30,7 +35,8 @@ public static class AcceptInboundEnvelopeHandler
 public sealed record OpenedSessionSchedule(
     Guid SessionId,
     DateTimeOffset LocationReminderDueAtUtc,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc,
+    IReadOnlyList<Guid> PromptIntentIds);
 
 public sealed class GuidedIntakeProcessor(First10DbContext database)
 {
@@ -53,6 +59,18 @@ public sealed class GuidedIntakeProcessor(First10DbContext database)
                         && x.CorrelationKey == envelope.CorrelationKey
                         && x.ExpiresAtUtc >= envelope.OccurredAtUtc)
             .ToListAsync(cancellationToken);
+        var eligibleSessions = candidates.Where(x => x.IsOpenAt(envelope.OccurredAtUtc)).ToArray();
+        if (eligibleSessions.Length > 1)
+        {
+            database.IntakeRecoveryItems.Add(IntakeRecoveryItem.Create(
+                envelope.Channel,
+                envelope.ProviderMessageId,
+                "multiple_open_sessions",
+                DateTimeOffset.UtcNow,
+                envelope.ContactReference,
+                envelope.ReporterKey));
+        }
+
         var session = GuidedSessionSelector.SelectMostRecentOpen(candidates, envelope);
         if (session is not null)
         {
@@ -73,6 +91,16 @@ public sealed class GuidedIntakeProcessor(First10DbContext database)
 
         if (envelope.ContentKind is not (IntakeContentKind.Photo or IntakeContentKind.Voice))
         {
+            database.IntakeRecoveryItems.Add(IntakeRecoveryItem.Create(
+                envelope.Channel,
+                envelope.ProviderMessageId,
+                envelope.ContentKind == IntakeContentKind.Unsupported
+                    ? "unsupported_content"
+                    : "unattached_input",
+                DateTimeOffset.UtcNow,
+                envelope.ContactReference,
+                envelope.ReporterKey));
+            await database.SaveChangesAsync(cancellationToken);
             if (transaction is not null)
             {
                 await transaction.CommitAsync(cancellationToken);
@@ -83,10 +111,13 @@ public sealed class GuidedIntakeProcessor(First10DbContext database)
 
         session = GuidedIntakeSession.Open(Guid.NewGuid(), envelope, CollectionWindow);
         database.GuidedIntakeSessions.Add(session);
-        AddPrompt(session, IntakePrompt.Acknowledgement);
+        var promptIntentIds = new List<Guid>
+        {
+            AddPrompt(session, IntakePrompt.Acknowledgement)
+        };
         foreach (var prompt in session.PendingPrompts)
         {
-            AddPrompt(session, prompt);
+            promptIntentIds.Add(AddPrompt(session, prompt));
         }
 
         await database.SaveChangesAsync(cancellationToken);
@@ -98,15 +129,20 @@ public sealed class GuidedIntakeProcessor(First10DbContext database)
         return new OpenedSessionSchedule(
             session.Id,
             session.LocationReminderDueAtUtc,
-            session.ExpiresAtUtc);
+            session.ExpiresAtUtc,
+            promptIntentIds);
     }
 
-    private void AddPrompt(GuidedIntakeSession session, IntakePrompt prompt) =>
-        database.IntakePromptIntents.Add(IntakePromptIntent.Create(
+    private Guid AddPrompt(GuidedIntakeSession session, IntakePrompt prompt)
+    {
+        var intent = IntakePromptIntent.Create(
             session,
             prompt,
             IntakeLanguage.English,
-            DateTimeOffset.UtcNow));
+            DateTimeOffset.UtcNow);
+        database.IntakePromptIntents.Add(intent);
+        return intent.Id;
+    }
 }
 
 public static class RemindMissingLocationHandler
@@ -114,6 +150,7 @@ public static class RemindMissingLocationHandler
     public static async Task Handle(
         RemindMissingLocation command,
         First10DbContext database,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var session = await database.GuidedIntakeSessions
@@ -121,11 +158,13 @@ public static class RemindMissingLocationHandler
             .SingleOrDefaultAsync(x => x.Id == command.SessionId, cancellationToken);
         if (session?.TryScheduleLocationReminder(DateTimeOffset.UtcNow) == true)
         {
-            database.IntakePromptIntents.Add(IntakePromptIntent.Create(
+            var intent = IntakePromptIntent.Create(
                 session,
                 IntakePrompt.RemindLocation,
                 IntakeLanguage.English,
-                DateTimeOffset.UtcNow));
+                DateTimeOffset.UtcNow);
+            database.IntakePromptIntents.Add(intent);
+            await bus.PublishAsync(new DeliverIntakePrompt(intent.Id));
         }
     }
 }

@@ -45,9 +45,28 @@ internal sealed class IntakePromptIntentConfiguration : IEntityTypeConfiguration
         builder.ToTable("prompt_intents", "intake");
         builder.HasKey(x => x.Id);
         builder.HasIndex(x => new { x.SessionId, x.Prompt }).IsUnique();
+        builder.Property(x => x.Channel).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Prompt).HasConversion<string>().HasMaxLength(48);
         builder.Property(x => x.Language).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.CatalogueVersion).HasMaxLength(32);
         builder.Property(x => x.DeliveryStatus).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ProviderMessageId).HasMaxLength(512);
+        builder.HasIndex(x => new { x.Channel, x.ContactReference, x.ProviderMessageId }).IsUnique();
+        builder.Property(x => x.FailureCode).HasMaxLength(80);
+    }
+}
+
+internal sealed class IntakeRecoveryItemConfiguration : IEntityTypeConfiguration<IntakeRecoveryItem>
+{
+    public void Configure(EntityTypeBuilder<IntakeRecoveryItem> builder)
+    {
+        builder.ToTable("recovery_items", "intake");
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => new { x.Channel, x.ProviderMessageId, x.Reason }).IsUnique();
+        builder.Property(x => x.Channel).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ProviderMessageId).HasMaxLength(512);
+        builder.Property(x => x.Reason).HasMaxLength(80);
+        builder.Property(x => x.ReporterKey).HasMaxLength(64);
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
     }
 }

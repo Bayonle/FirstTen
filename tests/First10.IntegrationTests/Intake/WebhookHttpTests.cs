@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using First10.Modules.Intake;
 
 namespace First10.IntegrationTests.Intake;
 
@@ -16,6 +17,37 @@ public sealed class WebhookHttpTests(Persistence.PostgresFixture postgres)
     private const string MetaAppSecret = "meta-test-app-secret";
     private const string MetaVerifyToken = "meta-test-verify-token";
     private const string PseudonymKey = "http-integration-pseudonym-key-000000000001";
+
+    [Fact]
+    public void CredentialOverlapAcceptsPreviousOnlyInsideWindow()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.True(First10.Api.Webhooks.WebhookSecurity.SecretMatchesWithOverlap(
+            "active-secret",
+            "previous-secret",
+            now.AddMinutes(5).ToString("O"),
+            "previous-secret",
+            now));
+        Assert.False(First10.Api.Webhooks.WebhookSecurity.SecretMatchesWithOverlap(
+            "active-secret",
+            "previous-secret",
+            now.AddMinutes(-1).ToString("O"),
+            "previous-secret",
+            now));
+
+        var body = "signed-body"u8.ToArray();
+        var signature = Convert.ToHexStringLower(HMACSHA256.HashData(
+            Encoding.UTF8.GetBytes("previous-secret"),
+            body));
+        Assert.True(First10.Api.Webhooks.WebhookSecurity.MetaSignatureMatchesWithOverlap(
+            "active-secret",
+            "previous-secret",
+            now.AddMinutes(5).ToString("O"),
+            $"sha256={signature}",
+            body,
+            now));
+    }
 
     [Fact]
     public async Task AuthenticatedWebhooksAcceptOnceAndInvalidRequestsFailBeforeParsing()
@@ -42,6 +74,7 @@ public sealed class WebhookHttpTests(Persistence.PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.OK, (await SendTelegramAsync(client, telegramJson, TelegramSecret)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await SendTelegramAsync(client, telegramJson, TelegramSecret)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await SendTelegramAsync(client, "not-json", "wrong-secret")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await SendTelegramAsync(client, "not-json", TelegramSecret)).StatusCode);
 
         using var oversized = new HttpRequestMessage(HttpMethod.Post, "/webhooks/telegram")
         {
@@ -59,17 +92,53 @@ public sealed class WebhookHttpTests(Persistence.PostgresFixture postgres)
             """;
         Assert.Equal(HttpStatusCode.OK, (await SendWhatsAppAsync(client, whatsappJson)).StatusCode);
 
+        Guid deliveryIntentId;
+        await using (var setupScope = factory.Services.CreateAsyncScope())
+        {
+            var database = setupScope.ServiceProvider.GetRequiredService<First10DbContext>();
+            Assert.Equal(1, await database.InboundMessageReceipts.CountAsync(
+                x => x.Scope == "telegram" && x.Key == "800001"));
+            Assert.Equal(1, await database.InboundMessageReceipts.CountAsync(
+                x => x.Scope == "whatsapp" && x.Key == "wamid.http-voice"));
+            var contact = await database.ReporterContacts.SingleAsync(x => x.Channel == IntakeChannel.WhatsApp);
+            Assert.DoesNotContain("2348001234567", contact.ProtectedDestination, StringComparison.Ordinal);
+            var session = GuidedIntakeSession.Open(
+                Guid.NewGuid(),
+                new InboundChannelEnvelope
+                {
+                    SchemaVersion = 1,
+                    Channel = IntakeChannel.WhatsApp,
+                    ProviderMessageId = "setup-input",
+                    ReporterKey = contact.ReporterKey,
+                    ContactReference = contact.Id,
+                    ContentKind = IntakeContentKind.Voice,
+                    ProviderMediaHandle = "setup-handle",
+                    OccurredAtUtc = DateTimeOffset.UtcNow,
+                    CorrelationKey = contact.ReporterKey
+                },
+                TimeSpan.FromMinutes(2));
+            var intent = IntakePromptIntent.Create(
+                session,
+                IntakePrompt.Acknowledgement,
+                IntakeLanguage.English,
+                DateTimeOffset.UtcNow);
+            intent.TryMarkProviderAccepted("wamid.outbound-receipt", DateTimeOffset.UtcNow);
+            database.GuidedIntakeSessions.Add(session);
+            database.IntakePromptIntents.Add(intent);
+            await database.SaveChangesAsync();
+            deliveryIntentId = intent.Id;
+        }
+
+        var statusJson = """
+            {"entry":[{"changes":[{"value":{"statuses":[{"id":"wamid.outbound-receipt","status":"delivered","timestamp":"1784558415"}]}}]}]}
+            """;
+        Assert.Equal(HttpStatusCode.OK, (await SendWhatsAppAsync(client, statusJson)).StatusCode);
+
         await using var verificationScope = factory.Services.CreateAsyncScope();
-        var database = verificationScope.ServiceProvider.GetRequiredService<First10DbContext>();
-        Assert.Equal(1, await database.InboundMessageReceipts.CountAsync(
-            x => x.Scope == "telegram" && x.Key == "800001"));
-        Assert.Equal(1, await database.InboundMessageReceipts.CountAsync(
-            x => x.Scope == "whatsapp" && x.Key == "wamid.http-voice"));
-        Assert.DoesNotContain(
-            "2348001234567",
-            (await database.ReporterContacts.SingleAsync(x => x.Channel == First10.Modules.Intake.IntakeChannel.WhatsApp))
-                .ProtectedDestination,
-            StringComparison.Ordinal);
+        var verificationDatabase = verificationScope.ServiceProvider.GetRequiredService<First10DbContext>();
+        Assert.Equal(
+            ChannelDeliveryStatus.Delivered,
+            (await verificationDatabase.IntakePromptIntents.SingleAsync(x => x.Id == deliveryIntentId)).DeliveryStatus);
     }
 
     private static Task<HttpResponseMessage> SendTelegramAsync(

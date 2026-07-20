@@ -24,6 +24,8 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
 
     public DbSet<IntakePromptIntent> IntakePromptIntents => Set<IntakePromptIntent>();
 
+    public DbSet<IntakeRecoveryItem> IntakeRecoveryItems => Set<IntakeRecoveryItem>();
+
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public DbSet<OutboundMessageRecord> OutboundMessageRecords => Set<OutboundMessageRecord>();

@@ -21,6 +21,7 @@ dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-
 dotnet user-secrets --project src/First10.AppHost set Parameters:object-storage-secret-key "choose-a-long-local-secret"
 dotnet user-secrets --project src/First10.AppHost set Parameters:bootstrap-secret "choose-a-different-long-local-secret"
 dotnet user-secrets --project src/First10.AppHost set Parameters:telegram-webhook-secret "choose-a-telegram-webhook-secret"
+dotnet user-secrets --project src/First10.AppHost set Parameters:telegram-bot-token "paste-the-BotFather-token"
 dotnet user-secrets --project src/First10.AppHost set Parameters:reporter-pseudonym-key "choose-an-independent-32-character-minimum-key"
 ```
 

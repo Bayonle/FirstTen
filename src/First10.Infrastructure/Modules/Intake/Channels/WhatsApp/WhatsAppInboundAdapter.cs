@@ -6,6 +6,12 @@ namespace First10.Infrastructure.Modules.Intake.Channels.WhatsApp;
 
 public sealed class WhatsAppInboundAdapter : IChannelInboundAdapter
 {
+    public sealed record DeliveryReceipt(
+        string ProviderMessageId,
+        ChannelDeliveryStatus Status,
+        DateTimeOffset OccurredAtUtc,
+        string? FailureCode);
+
     public IReadOnlyList<ProviderInboundMessage> Parse(ReadOnlyMemory<byte> payload)
     {
         using var document = JsonDocument.Parse(payload, new JsonDocumentOptions { MaxDepth = 24 });
@@ -55,6 +61,53 @@ public sealed class WhatsAppInboundAdapter : IChannelInboundAdapter
         return messages;
     }
 
+    public static IReadOnlyList<DeliveryReceipt> ParseDeliveryReceipts(ReadOnlyMemory<byte> payload)
+    {
+        using var document = JsonDocument.Parse(payload, new JsonDocumentOptions { MaxDepth = 24 });
+        var receipts = new List<DeliveryReceipt>();
+        if (!document.RootElement.TryGetProperty("entry", out var entries))
+        {
+            return receipts;
+        }
+
+        foreach (var entry in entries.EnumerateArray())
+        {
+            if (!entry.TryGetProperty("changes", out var changes))
+            {
+                continue;
+            }
+
+            foreach (var change in changes.EnumerateArray())
+            {
+                if (!change.TryGetProperty("value", out var value)
+                    || !value.TryGetProperty("statuses", out var statuses))
+                {
+                    continue;
+                }
+
+                foreach (var status in statuses.EnumerateArray())
+                {
+                    var mapped = MapDeliveryStatus(status.GetProperty("status").GetString());
+                    if (mapped is null)
+                    {
+                        continue;
+                    }
+
+                    receipts.Add(new DeliveryReceipt(
+                        status.GetProperty("id").GetString()
+                            ?? throw new JsonException("WhatsApp status message ID is missing."),
+                        mapped.Value,
+                        DateTimeOffset.FromUnixTimeSeconds(long.Parse(
+                            status.GetProperty("timestamp").GetString()!,
+                            CultureInfo.InvariantCulture)),
+                        mapped == ChannelDeliveryStatus.Failed ? "whatsapp_delivery_failed" : null));
+                }
+            }
+        }
+
+        return receipts;
+    }
+
     private static (IntakeContentKind Kind, string? Handle, IntakeLocation? Location) ReadContent(
         JsonElement message)
     {
@@ -81,4 +134,12 @@ public sealed class WhatsAppInboundAdapter : IChannelInboundAdapter
 
         return (IntakeContentKind.Unsupported, null, null);
     }
+
+    private static ChannelDeliveryStatus? MapDeliveryStatus(string? status) => status switch
+    {
+        "sent" => ChannelDeliveryStatus.Sent,
+        "delivered" or "read" => ChannelDeliveryStatus.Delivered,
+        "failed" => ChannelDeliveryStatus.Failed,
+        _ => null
+    };
 }
