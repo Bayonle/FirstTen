@@ -167,9 +167,14 @@ AE10 retention deletion.
 | Raw-media boundary | The API persists only the provider media handle and metadata. The worker downloads the raw image directly from Telegram/Meta, decodes and redacts it in bounded memory, stores only the blurred derivative, then releases buffers. A redaction failure discards the image and continues text/audio-only. |
 | Reporter addressing | Intake owns the only reversible channel destination. Store an encrypted, versioned destination for required replies and a separately keyed pseudonymous lookup value for correlation; downstream modules receive only an opaque contact reference. Back the encryption boundary with the selected host's managed key/secret facility, rotate keys through a runbook, and remove the destination when its approved retention/communication purpose ends. |
 | GPT boundary | Use application-owned interfaces backed by OpenAI. GPT receives only minimized transcript/text and a face-blurred image. Request structured triage output; do not use agentic tools on the emergency path. Start evaluation with GPT-5.6 Luna at low/none reasoning and explicitly compare Terra/Sol where measured quality justifies latency/cost. |
+| AI processing approval | Production AI calls fail closed unless the exact OpenAI project, processing region/profile, model snapshots, retention/ZDR settings, and subprocessors are approved in the DPIA and recorded as an activation gate. Development cannot fall back to consumer accounts or an unapproved project. |
 | Deadline behavior | Maintain one end-to-end intake deadline. Provider calls use budgets inside that deadline; retries may not extend it. At 30 seconds the workflow creates manual review and sends truthful fallback messaging. Later enrichment may continue only if it cannot overwrite dispatcher decisions or duplicate reporter messages. |
-| Guidance safety | Store immutable, versioned, clinically approved text and pre-generated voice assets. GPT can return an enabled template identifier; deterministic policy validates eligibility and chooses the conservative default on uncertainty. Runtime speech synthesis is not required to meet the emergency deadline. |
+| Guidance safety | Store each immutable `GuidanceTemplateSet` as one atomically enabled English/Pidgin/Yoruba bundle of clinically approved text and pre-generated voice assets. GPT can return an eligible category only; deterministic policy selects an enabled set and chooses the conservative default on uncertainty. Runtime speech synthesis is not required to meet the emergency deadline. |
+| Guidance delivery ownership | Guidance creates a deadline-bound intent containing only an opaque Intake contact reference. An Intake-owned delivery handler alone may resolve the encrypted destination and call Telegram/Meta; it returns only delivery state to Guidance. |
 | Incident matching | Calculate distance only from accepted coordinates derived from a pin or a confidence-qualified gazetteer match. The 200-metre/five-minute rule produces a candidate; independent reporter identity and confidence gates control auto-verification. Ambiguous landmark matches remain separate for dispatcher review. |
+| Reporter independence | Distinct channel accounts are weak corroboration, not proof of distinct humans. Auto-verification requires two independently enrolled/verified pilot identities; otherwise multiple matching contacts create a corroborated incident that still requires dispatcher verification. |
+| Audit retention | Store append-only audit epochs with signed checkpoints anchored outside the mutable operational database. Retention may purge expired event payloads only after an epoch is sealed; minimized anchors and legal-hold metadata remain sufficient to detect removal without retaining recoverable personal content. |
+| Workload credentials | Use separate least-privilege API, worker, migration, retention, and emergency break-glass identities for PostgreSQL, object storage, and key access. Runtime identities cannot apply migrations; the API cannot redeem media or run retention; the worker cannot administer users. |
 | Real-time UI | After a worker transaction commits, its outbox sends a small projection-changed contract to an API-owned PostgreSQL queue; the API broadcasts an idempotent SignalR invalidation. REST/OpenAPI remains the recoverable command/query contract, and TanStack Query refetches authoritative state after reconnect, duplicate notifications, or version gaps. The pilot runs one API replica; horizontal API scaling requires an explicit SignalR fan-out/backplane decision. |
 | Production portability | Publish two OCI images. Keep PostgreSQL, object storage, OpenTelemetry exporters, and secrets behind standard configuration. Select an approved hosting region later without changing domain code. |
 
@@ -482,8 +487,9 @@ PostgreSQL; an in-memory provider cannot prove these guarantees.
 - Covers AE9. Replaying the same semantic outbound request results in one delivery record.
 
 **Verification:**
-- Restarting API or worker at each failure boundary does not lose accepted input or duplicate an
-  externally visible action.
+- Restarting API or worker at each failure boundary does not lose accepted input or duplicate a
+  local business effect. Provider delivery is reconciled as delivered, failed, or unknown; the
+  accepted-before-acknowledgement window is never misrepresented as exactly once.
 - Database ownership and cross-module dependency tests remain green.
 
 - U3. **Implement invitation-only identity, authorization, and audit**
@@ -517,8 +523,14 @@ governance without building an enterprise identity platform.
 - Keep identity signing/data-protection keys, reporter-contact encryption keys, webhook secrets, and
   provider tokens purpose-separated and environment-specific. Version identifiers support rotation;
   secrets and plaintext destinations never enter configuration files, telemetry, or audit payloads.
-- Keep audit payloads structured and minimized. Chain or periodically seal audit batches so casual
-  database edits are detectable; do not claim cryptographic non-repudiation.
+- Wrap data-protection and TOTP-encryption keys with an external managed KMS/HSM boundary using
+  purpose-separated keys; database access alone must not decrypt either secret class.
+- Throttle every invitation, login, TOTP, recovery-code, MFA-reset, bootstrap, and break-glass route
+  with enumeration-safe responses and per-IP, per-account, and global limits. Trust forwarded client
+  addresses only from explicitly configured reverse proxies.
+- Keep audit payloads structured and minimized. Seal ordered audit epochs with signed checkpoints
+  anchored in immutable storage outside the operational database; retention may delete expired
+  payloads without breaking verification of surviving epochs. Do not claim non-repudiation.
 
 **Execution note:** Implement policy and session tests before exposing module endpoints.
 
@@ -534,6 +546,8 @@ governance without building an enterprise identity platform.
 - Permission: a clinical approver can approve a versioned template but cannot dispatch an incident.
 - Error path: an unconfirmed invitation, incorrect TOTP, revoked session, or reused recovery code is
   rejected and recorded without logging the secret.
+- Abuse: distributed and single-account attempts against every authentication/recovery route are
+  bounded, enumeration-safe, observable, and cannot exhaust the normal dispatcher login budget.
 - Recovery: an administrator with recent reauthentication resets another user's MFA; all prior
   sessions and recovery codes are invalidated and the action is audited.
 - Rotation: changing a webhook/provider credential or active contact-encryption key keeps already
@@ -571,6 +585,9 @@ session, and prove Telegram test behavior matches WhatsApp production behavior.
 **Approach:**
 - Validate webhook authenticity before parsing business data: Telegram secret-token comparison and
   Meta verification/signature validation. Reject oversized or unsupported payloads before enqueue.
+- Enforce trusted-proxy-aware per-IP, per-channel, per-reporter, and global admission limits plus
+  bounded queue and provider-cost budgets. Quarantine authenticated over-budget traffic for visible
+  operator review; never silently discard an already accepted emergency report.
 - Normalize each provider payload into one versioned inbound envelope containing channel,
   pseudonymous reporter key, provider message/media handle, content kind, timestamp, optional
   location, and correlation metadata. Preserve the sanitized original fixture only in tests.
@@ -578,7 +595,8 @@ session, and prove Telegram test behavior matches WhatsApp production behavior.
   with a separately keyed pseudonymous value and pass only an opaque contact reference to other
   modules and queued work; never use an unsalted phone-number or chat-ID hash as a pseudonym.
 - Let the first photo or voice event create a time-bounded session. Attach companion media and a
-  later pin in any order; prompt only for missing input; schedule the reminder/deadline durably.
+  later pin in any order. U6 emits one versioned `LocationRequired` decision; U4 alone correlates it,
+  sends the localized request, and schedules one durable reminder/deadline.
 - Persist provider media handles, not raw images. Keep all acknowledgement and request copy in a
   versioned, translated message catalogue.
 - Model channel delivery as accepted, sent, delivered, failed, or unknown. Provider success means
@@ -602,6 +620,8 @@ state machine, then add provider adapters.
   time-window and most-recent-open-session rule is deterministic and visible for manual correction.
 - Covers AE5. Missing location triggers one localized request and one 30-second reminder; expiry
   retains a visible location gap.
+- Late evidence: a pin received after manual-review expiry appends occurrence/receipt evidence,
+  updates the location-gap projection, and never clears the alert or overwrites dispatcher work.
 - Error path: invalid signatures, unknown content types, expired media handles, and payloads over
   limits are rejected or routed to a visible recovery state without leaking payloads into logs.
 - Privacy: database inspection and serialized downstream messages reveal neither the plaintext
@@ -644,11 +664,17 @@ failure degrades to an actionable text/audio path.
 - Do not write raw bytes to temp files, object storage, database columns, exception messages,
   tracing attributes, or dead-letter payloads. Dispose buffers promptly and avoid memory dumps in
   production container policy where the host permits it.
+- Delete or invalidate the provider media handle immediately after terminal redemption, rejection,
+  or expiry. Bound retry lifetime tightly; never copy handles into logs, audit payloads, dead letters,
+  exports, or backups, and test that terminal paths leave no redeemable application reference.
 - Define an `IRedactor` boundary and pin the selected ONNX model's licence, checksum, input
   normalization, thresholds, and benchmark result. Treat detector uncertainty, decode failure,
   resource exhaustion, or model failure as image rejection.
 - Store reporter audio separately with encryption and expiry metadata. Only the minimized audio
   object may be sent to the approved transcription processor.
+- Store blurred media under private, opaque object keys. Browsers receive content only through an
+  incident-authorized proxy or very short-lived signed URL after role, session, and current incident
+  access are rechecked; responses use private/no-store caching, safe content disposition, and audit.
 - Keep evaluation images outside git; version only manifests, labels, aggregate results, and a
   process for obtaining approved test data.
 
@@ -707,8 +733,9 @@ manual path at the deadline.
   where supported, a pseudonymous safety identifier, explicit image detail, and a strict structured
   output schema. Reject unknown enum values, missing evidence references, implausible counts, and
   schema drift.
-- Ask GPT for incident type, severity, casualty estimate/range, language, location phrase,
-  uncertainty, source evidence references, and an eligible guidance category—not clinical prose.
+- Ask GPT for incident type, severity, casualty estimate/range, language, location phrase, travel
+  direction, bounded non-clinical observed-victim/scene state, uncertainty, source evidence
+  references, and an eligible guidance category—not diagnosis or clinical prose.
 - Treat transcript text and image content as untrusted evidence, not instructions: isolate them from
   policy text, expose no tools, constrain outputs to the schema, and reject attempts to override the
   triage/template policy.
@@ -718,6 +745,12 @@ manual path at the deadline.
 - Race processing against a durable end-to-end deadline. At 30 seconds, atomically mark manual
   review, enqueue the review/122 message, and prevent late AI results from removing the alert or
   overwriting dispatcher changes.
+- Require an approved AI-processing profile before any production provider call. Missing or drifted
+  project/model/region/retention configuration follows the same deterministic manual fallback as an
+  unavailable provider and blocks public activation.
+- On either authoritative triage completion or deadline fallback, emit a durable report-ready event.
+  The fallback event requires neither AI output nor accepted coordinates and creates a queryable
+  manual-review incident that can accept dispatcher corrections and later AI/location evidence.
 - Benchmark GPT-5.6 Luna first, then Terra and Sol only where accuracy gaps justify them. Record
   per-language structured accuracy, unsafe overreach, abstention, p50/p95 latency, token cost, and
   image-detail setting. Pin a snapshot/configuration after review.
@@ -773,12 +806,17 @@ evaluations are an explicit benchmark lane, not a prerequisite for deterministic
 - Evaluate candidate reports using event time, accepted coordinates, distance, location confidence,
   and a pseudonymous reporter independence key. Treat 200 metres and five minutes as inclusive
   boundaries.
-- Auto-verify only when two independent qualifying reports meet the time/distance/confidence rules.
-  A singleton starts the 60-second review timer; same-reporter duplicates never count as independent
-  confirmation; uncertain candidates remain separate and linked for dispatcher comparison.
+- Auto-verify only when two independently enrolled/verified pilot identities meet the
+  time/distance/confidence rules. Distinct unverified channel contacts are weak corroboration and
+  remain dispatcher-verification-required. A singleton is visible immediately with a 60-second
+  countdown and deterministic high-priority ordering; expiry raises one overdue alert that remains
+  queued until a dispatcher verifies, rejects with a reason, or keeps it open. Corroboration or
+  dispatcher action cancels the scheduled escalation, and all race outcomes are idempotent.
 - Store each source claim and report-to-incident link. Build current projections from immutable
-  timeline events, flag material contradictions, and require an explicit dispatcher resolution if
-  an operational field must be chosen.
+  timeline events, including type, severity, casualty range, victim/scene observation, coordinate or
+  landmark/direction, occurrence time, receipt time, and provenance. Accept source-linked post-report
+  text/voice observations on an open incident. Flag material contradictions and require an explicit,
+  versioned dispatcher resolution if an operational field must be chosen.
 - Generate the crew briefing from a structured, source-linked projection. GPT may condense that
   projection but must return claim references; a deterministic chronological briefing is the
   fallback when the result is late, unsupported, or unavailable.
@@ -789,16 +827,20 @@ evaluations are an explicit benchmark lane, not a prerequisite for deterministic
 - Origin R10/R11 and AE7; append-only primitives from U2.
 
 **Test scenarios:**
-- Covers AE7. Independent reports 120 metres and four minutes apart merge and auto-verify; differing
-  casualty estimates remain visible with both source references.
+- Covers AE7. Independently enrolled reporters 120 metres and four minutes apart merge and
+  auto-verify; differing casualty/victim-state estimates remain visible with both source references.
 - Boundary: reports exactly 200 metres and exactly five minutes apart qualify; one unit beyond
   either boundary does not auto-merge.
 - Independence: retransmission or a second account mapped to the same reporter key does not satisfy
-  two-reporter verification.
+  two-reporter verification; distinct unverified channel contacts corroborate but do not auto-verify.
 - Ambiguity: two reports sharing only a non-unique landmark remain separate candidates for human
   review.
 - Timeline: late-arriving evidence is ordered by occurrence time while its receipt time remains
   visible; no historical event is rewritten.
+- Timer: expiry escalates exactly once; late independent corroboration or dispatcher action cancels
+  the pending effect, and racing deliveries cannot regress the incident.
+- Relay: a later source-linked victim/scene observation attaches to the open incident, appears in the
+  briefing/timeline, and produces a visible conflict when it contradicts a contemporaneous claim.
 - Briefing safety: unsupported GPT statements or missing source references reject the generated
   briefing and expose the deterministic fallback.
 
@@ -820,7 +862,8 @@ clinically approved guidance and truthful closure messages.
 - Create: `src/First10.Modules/Dispatch/`
 - Create: `src/First10.Modules/Guidance/`
 - Create: `src/First10.Infrastructure/Modules/Guidance/GuidanceAssetStore.cs`
-- Create: `src/First10.Infrastructure/Modules/Guidance/OutboundChannelSender.cs`
+- Create: `src/First10.Infrastructure/Modules/Guidance/GuidanceIntentProcessor.cs`
+- Create: `src/First10.Infrastructure/Modules/Intake/Delivery/OutboundChannelSender.cs`
 - Create: `tools/First10.GuidanceAssets/First10.GuidanceAssets.csproj`
 - Create: `assets/guidance/manifest.example.json`
 - Test: `tests/First10.UnitTests/Dispatch/DispatchStateMachineTests.cs`
@@ -829,11 +872,15 @@ clinically approved guidance and truthful closure messages.
 - Test: `tests/First10.ContractTests/Channels/StatusDeliveryParityTests.cs`
 
 **Approach:**
-- Define guarded dispatcher transitions for verified, dispatched, arrived, transported, and closed;
-  retain manual-review/conflict states as orthogonal flags instead of silently clearing them.
-- Store guidance templates as immutable versions keyed by incident category, severity band,
-  language, and conservative-default status. Activation requires ClinicalApprover identity,
-  approval timestamp, text checksum, voice-asset checksum, and audit record.
+- Define guarded dispatcher transitions for verified, dispatched, arrived, transported, closed, and
+  reopened; retain manual-review/conflict states as orthogonal flags instead of silently clearing
+  them. Reopen is allowed only from closed, by a dispatcher with a required reason; it appends audit
+  and timeline events, never retracts recognition, and sends a correction only when approved policy
+  explicitly enables one.
+- Store an immutable `GuidanceTemplateSet` keyed by incident category, severity band, policy version,
+  and conservative-default status. Each set contains English, Pidgin, and Yoruba text/voice pairs;
+  activation is atomic and requires ClinicalApprover identity, approval timestamp, exact text and
+  audio checksums, eligibility context, and audit record for every locale.
 - Pre-generate and clinically review the voice asset for each approved text. A template version is
   not enableable until all required language assets pass review. A non-production asset tool may
   draft translations and call the current supported OpenAI speech endpoint, but it records the
@@ -841,12 +888,19 @@ clinically approved guidance and truthful closure messages.
   becomes enabled until A5 approves the exact text/audio pair.
 - Validate GPT's proposed template identifier against enabled policy; use the conservative approved
   default when absent or invalid. Never send the GPT explanation to the reporter as advice.
-- Create status-message intents only from committed dispatcher transitions. Use one semantic key per
+- On authoritative triage completion—or the 30-second safe manual fallback—durably create exactly one
+  `InitialGuidanceRequested` intent carrying the first-receipt deadline, language, category, and
+  opaque contact reference. It runs on an isolated priority queue and never waits for matching,
+  verification, or dispatcher action; uncertain cases select the conservative approved default.
+- Create response-status intents only from committed dispatcher transitions. Use one semantic key per
   incident, reporter, transition, language, and template version so retries cannot duplicate a
   message.
-- Put only the opaque Intake-owned contact reference on an outbound intent. The channel sender
-  resolves the encrypted destination at the last responsible moment, never returns it to Guidance,
-  and records delivery against the opaque reference.
+- Put only the opaque Intake-owned contact reference on an outbound intent. The Intake-owned channel
+  sender resolves the encrypted destination at the last responsible moment, never returns it to
+  Guidance, and records delivery against the opaque reference.
+- Guarantee exactly-once intent creation, not impossible provider-level exactly-once delivery. Model
+  an accepted-before-local-acknowledgement outcome as `Unknown`, reconcile receipts where available,
+  and use a bounded/manual retry policy rather than blind resend.
 
 **Execution note:** Write state-transition and exactly-once effect tests before channel senders.
 
@@ -869,6 +923,12 @@ clinically approved guidance and truthful closure messages.
   changing incident status or fabricating delivery.
 - Privacy: status text/voice includes no victim identity, personalized medical detail, or outcome
   beyond the committed response state.
+- Deadline: normal, uncertain, singleton, and provider-timeout reports create one approved text/voice
+  guidance intent by the original deadline without waiting for verification or dispatch.
+- Ambiguity: a crash after provider acceptance but before local acknowledgement records `Unknown`
+  and does not blindly resend an externally visible message.
+- Reopen: only a closed incident can reopen; stale/duplicate attempts and recognition replay are
+  harmless, and any reporter correction uses an explicitly approved template.
 
 **Verification:**
 - Every reporter-facing message resolves to an approved immutable asset and an auditable trigger.
@@ -890,12 +950,16 @@ unapproved NYSC credit path.
 - Test: `tests/First10.IntegrationTests/Recognition/RecognitionAwardTests.cs`
 
 **Approach:**
-- Consume verified-contribution events and maintain an append-only award ledger keyed to the
-  pseudonymous reporter identity and LGA, not incident narrative or victim data.
+- Consume the distinct `ContributionDispatcherVerified` event—not automatic incident verification—
+  and maintain an append-only award ledger keyed to the pseudonymous reporter identity and the
+  reviewed incident-location LGA, not reporter residence, incident narrative, or victim data. Use
+  `Unknown` when a reviewed incident LGA is unavailable.
 - Award a Citizen First Responder badge only after dispatcher verification. Make the policy
   versioned and idempotent so later incident merging or replay cannot double-award.
-- Expose opt-in, aggregate LGA recognition. Keep public names, rankings tied to incidents, monetary
-  value, and NYSC service hours disabled in code/configuration.
+- Expose a localized channel-neutral private badge notification and opt-in/decline/withdraw flow;
+  consent changes are idempotent and separate from emergency status delivery. Publish only aggregate
+  LGA recognition for opted-in awards. Keep public names, rankings tied to incidents, monetary value,
+  and NYSC service hours disabled in code/configuration.
 
 **Execution note:** Implement eligibility and privacy tests before adding read models.
 
@@ -933,6 +997,7 @@ parallel with the incident/dispatch API surface.
 - Create: `src/First10.Api/Endpoints/Guidance/`
 - Create: `src/First10.Api/Endpoints/Recognition/`
 - Create: `src/First10.Api/Endpoints/Operations/`
+- Create: `src/First10.Modules/Operations/OperationalReadModels.cs`
 - Create: `src/First10.Api/Realtime/IncidentHub.cs`
 - Create: `src/First10.Api/OpenApi/`
 - Test: `tests/First10.IntegrationTests/Api/IncidentApiTests.cs`
@@ -942,8 +1007,10 @@ parallel with the incident/dispatch API surface.
 
 **Approach:**
 - Expose coarse, task-oriented endpoints for active queues, incident detail/timeline, match review,
-  dispatch transitions, delivery retry, guidance administration, recognition, users, audit, and
-  operational health. Do not expose EF entities.
+  source-claim conflict resolution, append-only dispatcher notes, dispatch transitions, delivery
+  retry, guidance administration, recognition, users, audit, activation-gate status, and operational
+  health. Do not expose EF entities. U10 establishes the Operations health/read-model contracts;
+  U12 adds retention jobs, metrics, drills, and hardening.
 - Generate and version OpenAPI contracts for the TypeScript client. Use optimistic version tokens
   on dispatcher commands so stale tabs cannot overwrite newer decisions.
 - Publish small SignalR events containing incident identifier, new version, and event category. The
@@ -956,6 +1023,8 @@ parallel with the incident/dispatch API surface.
   restrict origins in development, use same-origin production, enforce HTTPS/HSTS and a restrictive
   content-security policy, render reporter/model content as text rather than trusted HTML, and
   suppress sensitive errors.
+- Notes and conflict resolutions require role authorization, optimistic versioning, author/time,
+  source-claim references, append-only timeline/audit events, and safe plain-text rendering.
 
 **Execution note:** Start with failing HTTP/SignalR authorization and concurrency contract tests.
 
@@ -1023,12 +1092,20 @@ incident and dispatch workspace from starting.
   relying on color alone.
 - Require confirmation for consequential dispatch transitions, show optimistic concurrency
   conflicts as refresh-and-review events, and keep crew briefing copyable/printable within the same
-  application.
+  application. The handoff action records the selected briefing version, time, and recipient role;
+  later evidence marks that handed-off version stale without claiming a separate crew application.
 - Provide focused routes for guidance approval, users/access recovery, audit review, recognition,
   provider/queue health, and retention operations according to role.
 - Design mobile-width layouts for incident review and status updates, while optimizing the main
   two-pane workflow for a dispatcher laptop. Meet WCAG 2.2 AA targets for keyboard use, focus,
   contrast, status semantics, and reduced motion.
+- Make the clinical approval route show immutable eligibility context, exact text, playable audio,
+  checksums, previous-version diff, three-language completeness, rejection reason, and reapproval
+  after any asset change. Operators import immutable drafts; ClinicalApprovers alone approve them.
+- Define accessible live updates: routine refreshes are non-interrupting, overdue/manual alerts use a
+  prioritized live region, keyboard focus stays stable, active rows do not reorder unexpectedly,
+  countdowns announce meaningful thresholds rather than every second, and reconnect/last-refresh
+  state is explicit.
 
 **Execution note:** Build each critical state from deterministic fixtures and component tests before
 wiring live queries; then prove the full dispatcher path in browser automation.
@@ -1052,6 +1129,11 @@ wiring live queries; then prove the full dispatcher path in browser automation.
   truthful visible states without losing entered dispatcher notes.
 - Accessibility/responsive: core queue, incident, modal, and status flows work at desktop and narrow
   widths with keyboard-only navigation, visible focus, accessible names, and non-color status cues.
+- Localization: a completeness matrix covers every reporter message key in all three languages,
+  required text/voice assets, interpolation fields, and safe fallback; missing or unreviewed copy
+  cannot silently fall back to another language.
+- Clinical/crew: an approver can compare and approve the exact immutable bundle, while a dispatcher
+  records a current briefing handoff and sees it become stale after new evidence.
 
 **Verification:**
 - A dispatcher can complete the staged end-to-end workflow without developer tools or database
@@ -1093,6 +1175,10 @@ external approvals and quality gates are recorded.
   delete every object version where versioning exists, preserve a minimized deletion audit, and
   verify backup expiry or approved crypto-erasure behavior with the selected host. A deletion audit
   follows the structured-record retention policy and never contains recoverable content.
+- Encode legal-approved cutoffs and triggers for closure, session expiry, opt-out, and legal holds;
+  maintain a lifecycle matrix spanning contacts, provider handles, media/audio, queues, dead letters,
+  delivery records, exports, operational records, audit epochs, and backups. Do not invent a
+  production cutoff where legal approval is still pending.
 - Provide a privacy-safe pilot metrics projection for intake-to-ticket, intake-to-dispatch,
   completeness, AI accuracy, redaction, guidance, closure, delivery, and conflict handling. Keep
   evaluation labels separate from live operational decisions.
@@ -1103,6 +1189,10 @@ external approvals and quality gates are recorded.
 - Gate public WhatsApp activation on recorded FRSC approval, clinical library approval, Meta access,
   legal/DPIA approval, privacy and AI benchmark results, recovery drill, restore test, and staged
   corridor exercise. Telegram remains visibly labelled test-only until the gate passes.
+- Deliver localized reporter-onboarding materials: controlled-test disclosure, first-contact legal
+  notice/consent basis, safe reporting and continued 122 guidance, help/withdrawal instructions,
+  facilitator script, attendance/notice evidence, and comprehension rehearsal. FRSC and legal must
+  approve the exact materials before public activation.
 
 **Execution note:** Treat operational gates as executable checks or recorded approvals, not a launch
 checklist that can be bypassed by setting one environment variable.
@@ -1122,8 +1212,9 @@ checklist that can be bypassed by setting one environment variable.
   distinct health states, bounded retries, actionable alerts, and documented recovery steps.
 - Privacy: logs, traces, metrics, dashboards, exports, and alert payloads contain no raw media,
   phone/user handle, transcript, clinical content, or provider token.
-- Activation: production WhatsApp sending remains disabled when any required approval or benchmark
-  gate is absent; Telegram test mode remains usable and clearly identified.
+- Activation: both public WhatsApp inbound processing and outbound production sending remain disabled
+  when any required approval or benchmark gate is absent; explicitly marked Telegram and WhatsApp
+  sandbox fixtures remain usable and clearly identified.
 - Metric integrity: staged ground truth reconciles with the reported latency, completeness,
   guidance, closure, redaction, and conflict KPIs.
 
@@ -1133,6 +1224,39 @@ checklist that can be bypassed by setting one environment variable.
 - The pilot-readiness report clearly separates passed technical gates from outstanding external
   approvals and cannot enable public intake while a mandatory gate is missing.
 
+- U13. **Prepare and run the partner-backed pilot evidence workstream**
+
+**Goal:** Turn the non-software paper commitments into owned, auditable artifacts without pretending
+that engineering can manufacture external approval or live outcomes.
+
+**Dependencies:** Begins in parallel with U1; activation and evaluation depend on U12.
+
+**Files:**
+- Create: `docs/pilot/ownership-and-schedule.md`
+- Create: `docs/pilot/approval-register.md`, `docs/pilot/participant-register.template.csv`
+- Create: `docs/pilot/baseline-and-metrics-protocol.md`, `docs/pilot/evaluation-report.template.md`
+- Create: `docs/pilot/reporter-onboarding.md`, `docs/pilot/facilitator-script.md`
+- Create: `docs/pilot/frsc-loi-checklist.md`, `docs/pilot/second-corridor-eoi-checklist.md`
+- Create: `docs/pilot/defence-deck-outline.md`, `docs/pilot/paper-metric-reconciliation.md`
+
+**Approach:**
+- Assign named human owners and evidence dates for FRSC partnership, legal/DPIA, clinical assets,
+  Meta access, hosting, recruitment/training, baseline collection, staged corridor exercises, live
+  pilot decisions, evaluation, the FRSC letter, second-corridor expression of interest, and defence
+  deck. Until a person accepts ownership, show `Unassigned — activation blocker`.
+- Keep live emergencies, controlled exercises, sandbox submissions, and synthetic fixtures as
+  separate cohorts with explicit denominators. Never combine them into a success claim.
+- Train the target volunteer cohort only with approved localized materials and capture the approved
+  evidence of notice/consent, attendance, withdrawal support, and comprehension; store no participant
+  personal data in git.
+- Produce templates and checklists now; signed letters, approvals, participant evidence, baseline,
+  live-pilot results, and expressions of interest remain externally supplied gates.
+
+**Verification:**
+- The readiness report links every paper commitment to an owner, artifact, status, and evidence path.
+- The evaluation template cannot label a target achieved until its cohort, denominator, ground truth,
+  and approval are recorded.
+
 ---
 
 ## Phased Delivery
@@ -1141,9 +1265,10 @@ checklist that can be bypassed by setting one environment variable.
 |---|---|---|
 | 1. Safe foundation | U1–U3 | Aspire starts the two-process system; PostgreSQL messaging survives restart; secure invited users and audit work. |
 | 2. Controlled Telegram intake | U4–U6 | A Telegram photo/voice session becomes a privacy-safe structured ticket or a 30-second manual alert. |
-| 3. Incident operations | U7–U10 | Reports merge into traceable incidents; dispatcher transitions trigger approved guidance/status; APIs and real-time invalidation are secure. |
+| 3. Incident operations | U7–U10 | Reports merge into traceable incidents; triage/deadline triggers approved initial guidance, dispatcher transitions trigger status updates, and APIs/real-time invalidation are secure. |
 | 4. Pilot console | U11 | Dispatchers can execute the entire staged workflow in the responsive React console. |
 | 5. Pilot readiness | U12 | Load, failure, privacy, recovery, retention, metrics, and external-approval gates are documented and exercised before WhatsApp activation. |
+| Parallel. Pilot evidence | U13 | Partnership, onboarding, baseline, evaluation, letters, second-corridor interest, and defence evidence have owners and auditable artifacts; missing external evidence remains visibly blocking. |
 
 With the current 20 July start, use these as aggressive planning checkpoints rather than promises:
 
@@ -1225,14 +1350,24 @@ flowchart TB
 
 ---
 
-## Success Metrics
+## Pilot Readiness Measures
+
+- Before activation, deterministic tests and staged exercises prove channel parity, privacy
+  invariants, deadline fallback, approved-guidance selection, source-traceable incidents, secure
+  role boundaries, restore/queue recovery, retention, localized onboarding, and fail-closed public
+  WhatsApp gates. External approvals remain explicitly outstanding until recorded.
+- Instrument every post-pilot outcome below and reconcile a staged ground-truth dataset without
+  claiming live outcome success before a pilot runs.
+
+## Post-Pilot Success Metrics
 
 - At least 30 verified pilot reports complete intake, privacy processing, dispatcher review,
   dispatch workflow, guidance, and measurable closure.
 - Average intake-to-dispatch improves at least 70% from the agreed FRSC baseline, targeting five
   minutes or less from the paper's approximately 25-minute baseline.
-- Every dispatched ticket includes location or a prominent gap, incident type, severity, casualty
-  estimate/range, uncertainty, and source references.
+- Every dispatched ticket includes an accepted location, incident type, severity, casualty
+  estimate/range, uncertainty, and source references; pre-dispatch manual-review items may retain a
+  prominent location gap but cannot transition to `Dispatched` until a dispatcher resolves it.
 - At least 90% of verified reports receive an enabled, clinically approved instruction with median
   delivery at or below 30 seconds and zero free-form clinical messages.
 - At least 80% of verified reports receive a truthful dispatch/arrival/transport closure update.
@@ -1242,8 +1377,17 @@ flowchart TB
   zero persistent/logged/external copies.
 - The multilingual GPT benchmark records quality, abstention, latency, cost, and unsafe-overreach
   results supporting the pinned production configuration.
+- False-positive rate is below 5% on the labelled/staged cohort, with the denominator and ground
+  truth recorded separately from live incidents.
 - Public WhatsApp activation remains impossible until the four external approval categories and
   technical readiness gates are recorded.
+
+Metric reconciliation is explicit: the paper's `≤30 seconds` legitimate-report dispatch target is
+retained as an aspirational measured outcome but is not substituted for the approved-guidance/manual
+fallback deadline; the primary operational dispatch target remains `≤5 minutes` pending FRSC baseline
+approval. The paper's 100% dispatched-location target is enforced as a dispatch transition guard.
+U13 records whether each remaining paper metric is retained, clarified, deferred, or rejected, with
+denominator, cohort, rationale, and required approver.
 
 ---
 
