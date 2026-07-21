@@ -14,6 +14,7 @@ COPY src/First10.Modules/First10.Modules.csproj src/First10.Modules/
 COPY src/First10.ServiceDefaults/First10.ServiceDefaults.csproj src/First10.ServiceDefaults/
 RUN dotnet restore src/First10.Api/First10.Api.csproj
 COPY src/ src/
+COPY data/ data/
 RUN dotnet publish src/First10.Api/First10.Api.csproj --no-restore -c Release -o /app/publish
 COPY --from=web-build /source/web/dist /app/publish/wwwroot
 

@@ -7,6 +7,7 @@ COPY src/First10.Modules/First10.Modules.csproj src/First10.Modules/
 COPY src/First10.ServiceDefaults/First10.ServiceDefaults.csproj src/First10.ServiceDefaults/
 RUN dotnet restore src/First10.Worker/First10.Worker.csproj
 COPY src/ src/
+COPY data/ data/
 RUN dotnet publish src/First10.Worker/First10.Worker.csproj --no-restore -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
