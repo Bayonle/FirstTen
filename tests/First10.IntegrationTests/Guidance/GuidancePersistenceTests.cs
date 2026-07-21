@@ -68,6 +68,14 @@ public sealed class GuidancePersistenceTests(Persistence.PostgresFixture postgre
             ReportedLanguage.English,
             First10.Modules.Intake.Triage.GuidanceCategory.OkadaCollision);
         await using var database = Database();
+        await using var transaction = await database.Database.BeginTransactionAsync();
+        await database.GuidanceTemplateSets
+            .Where(x => x.Purpose == GuidancePurpose.InitialSafety
+                        && x.EnabledAtUtc != null
+                        && x.SupersededAtUtc == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(
+                x => x.SupersededAtUtc,
+                _ => origin.AddYears(100)));
         var processor = new GuidanceIntentProcessor(
             database,
             new GuidanceAssetStore(database),
