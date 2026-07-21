@@ -4,12 +4,14 @@ using First10.Modules.Intake;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Wolverine.EntityFrameworkCore;
+using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Infrastructure.Modules.Intake.Channels;
 
 public sealed class ChannelWebhookIngress(
     ChannelEnvelopeMapper mapper,
-    IDbContextOutbox<First10DbContext> outbox)
+    IDbContextOutbox<First10DbContext> outbox,
+    PilotMetrics? metrics = null)
 {
     public async Task<bool> TryAcceptAsync(
         ProviderInboundMessage providerMessage,
@@ -36,6 +38,7 @@ public sealed class ChannelWebhookIngress(
         try
         {
             await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken);
+            metrics?.WebhookAccepted(providerMessage.Channel.ToString());
             return true;
         }
         catch (DbUpdateException exception) when (

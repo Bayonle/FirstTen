@@ -52,14 +52,14 @@ public static class IntakeConfiguration
         services.AddSingleton<TelegramInboundAdapter>();
         services.AddSingleton<WhatsAppInboundAdapter>();
         services.AddSingleton<TelegramChannelMessageSender>();
-        services.AddSingleton<WhatsAppChannelMessageSender>();
+        services.AddScoped<WhatsAppChannelMessageSender>();
         services.AddSingleton<IChannelMessageSender>(provider =>
             provider.GetRequiredService<TelegramChannelMessageSender>());
-        services.AddSingleton<IChannelMessageSender>(provider =>
+        services.AddScoped<IChannelMessageSender>(provider =>
             provider.GetRequiredService<WhatsAppChannelMessageSender>());
         services.AddSingleton<IChannelVoiceMessageSender>(provider =>
             provider.GetRequiredService<TelegramChannelMessageSender>());
-        services.AddSingleton<IChannelVoiceMessageSender>(provider =>
+        services.AddScoped<IChannelVoiceMessageSender>(provider =>
             provider.GetRequiredService<WhatsAppChannelMessageSender>());
         services.AddSingleton<IProviderMediaSource, TelegramMediaSource>();
         services.AddSingleton<IProviderMediaSource, WhatsAppMediaSource>();

@@ -1,6 +1,7 @@
 using First10.Infrastructure.Modules.Intake.Channels;
 using First10.Infrastructure.Modules.Intake.Channels.WhatsApp;
 using System.Text.Json;
+using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Api.Webhooks;
 
@@ -30,8 +31,14 @@ public static class WhatsAppWebhookEndpoints
             WhatsAppInboundAdapter adapter,
             ChannelWebhookIngress ingress,
             ChannelDeliveryReceiptProcessor deliveryReceipts,
+            IPilotActivationGate activationGate,
             CancellationToken cancellationToken) =>
         {
+            if (!await activationGate.CanUseWhatsAppAsync(cancellationToken))
+            {
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+
             var body = await WebhookSecurity.ReadBoundedAsync(request, cancellationToken);
             if (body is null)
             {

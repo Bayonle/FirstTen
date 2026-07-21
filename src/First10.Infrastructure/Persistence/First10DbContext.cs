@@ -8,6 +8,7 @@ using First10.Modules.Intake.Media;
 using First10.Modules.Intake.Triage;
 using First10.Modules.IdentityAudit;
 using First10.Modules.Recognition;
+using First10.Modules.Operations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -77,7 +78,11 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
 
     public DbSet<RecognitionNotificationIntent> RecognitionNotificationIntents => Set<RecognitionNotificationIntent>();
 
+    public DbSet<PilotGateEvidence> PilotGateEvidence => Set<PilotGateEvidence>();
+
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+
+    public DbSet<AuditAnchor> AuditAnchors => Set<AuditAnchor>();
 
     public DbSet<UserInvitation> UserInvitations => Set<UserInvitation>();
 

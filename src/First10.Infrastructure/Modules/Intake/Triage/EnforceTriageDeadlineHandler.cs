@@ -8,6 +8,7 @@ using First10.Modules.Intake.Triage;
 using First10.Modules.Guidance;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Infrastructure.Modules.Intake.Triage;
 
@@ -16,7 +17,9 @@ public sealed record TriageDeadlineOutcome(
     Guid ReporterPromptIntentId,
     DateTimeOffset FirstReceiptDeadlineUtc);
 
-public sealed class TriageDeadlineProcessor(First10DbContext database)
+public sealed class TriageDeadlineProcessor(
+    First10DbContext database,
+    PilotMetrics? metrics = null)
 {
     public async Task<TriageDeadlineOutcome?> ApplyAsync(
         Guid triageCaseId,
@@ -68,6 +71,7 @@ public sealed class TriageDeadlineProcessor(First10DbContext database)
             }),
             cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
+        metrics?.ManualFallback("deadline_elapsed");
         if (transaction is not null)
         {
             await transaction.CommitAsync(cancellationToken);

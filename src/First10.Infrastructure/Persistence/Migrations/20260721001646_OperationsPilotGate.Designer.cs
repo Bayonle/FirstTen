@@ -3,6 +3,7 @@ using System;
 using First10.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace First10.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(First10DbContext))]
-    partial class First10DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260721001646_OperationsPilotGate")]
+    partial class OperationsPilotGate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -467,41 +470,6 @@ namespace First10.Infrastructure.Persistence.Migrations
                     b.HasIndex("Purpose", "Trigger", "Category", "SeverityBand", "EnabledAtUtc");
 
                     b.ToTable("template_sets", "guidance");
-                });
-
-            modelBuilder.Entity("First10.Modules.IdentityAudit.AuditAnchor", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ExternalReference")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<string>("LastHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<long>("LastSequence")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("RecordedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("RecordedBy")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LastSequence")
-                        .IsUnique();
-
-                    b.ToTable("audit_anchors", "identity_audit");
                 });
 
             modelBuilder.Entity("First10.Modules.IdentityAudit.AuditEvent", b =>

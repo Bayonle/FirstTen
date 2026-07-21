@@ -4,6 +4,7 @@ using System.Text.Json;
 using First10.Modules.Intake;
 using Microsoft.Extensions.Configuration;
 using OpenTelemetry;
+using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Infrastructure.Modules.Intake.Channels;
 
@@ -166,7 +167,9 @@ public sealed class TelegramChannelMessageSender(IConfiguration configuration)
     }
 }
 
-public sealed class WhatsAppChannelMessageSender(IConfiguration configuration)
+public sealed class WhatsAppChannelMessageSender(
+    IConfiguration configuration,
+    IPilotActivationGate activationGate)
     : IChannelMessageSender, IChannelVoiceMessageSender
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(10) };
@@ -178,6 +181,11 @@ public sealed class WhatsAppChannelMessageSender(IConfiguration configuration)
         string text,
         CancellationToken cancellationToken = default)
     {
+        if (!await activationGate.CanUseWhatsAppAsync(cancellationToken))
+        {
+            return ProviderSendResult.Failed("whatsapp_activation_gate_closed");
+        }
+
         var baseUrl = configuration["Channels:WhatsApp:GraphApiBaseUrl"];
         var phoneNumberId = configuration["Channels:WhatsApp:PhoneNumberId"];
         var accessToken = configuration["Channels:WhatsApp:AccessToken"];
@@ -238,6 +246,11 @@ public sealed class WhatsAppChannelMessageSender(IConfiguration configuration)
         string contentType,
         CancellationToken cancellationToken = default)
     {
+        if (!await activationGate.CanUseWhatsAppAsync(cancellationToken))
+        {
+            return ProviderSendResult.Failed("whatsapp_activation_gate_closed");
+        }
+
         var settings = ReadSettings();
         if (settings is null)
         {

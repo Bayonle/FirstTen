@@ -4,6 +4,7 @@ using First10.Infrastructure.Modules.Intake;
 using First10.Infrastructure.Modules.Incidents;
 using First10.Infrastructure.Modules.Guidance;
 using First10.Infrastructure.Modules.Recognition;
+using First10.Infrastructure.Modules.Operations;
 using Wolverine;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -16,6 +17,8 @@ builder.Services.AddFirst10Intake();
 builder.Services.AddFirst10Incidents();
 builder.Services.AddFirst10DispatchAndGuidance();
 builder.Services.AddFirst10Recognition();
+builder.Services.AddFirst10Operations();
+builder.Services.AddHostedService<RetentionScheduler>();
 builder.Services.AddHostedService<PersistenceMigrationService>();
 builder.UseWolverine(options => WolverineConfiguration.Configure(
     options,

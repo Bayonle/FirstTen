@@ -5,6 +5,7 @@ using First10.Modules.Guidance;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Infrastructure.Modules.Intake.Delivery;
 
@@ -18,7 +19,8 @@ public sealed class OutboundChannelSender(
     IEnumerable<IChannelMessageSender> senders,
     IEnumerable<IChannelVoiceMessageSender> voiceSenders,
     IGuidanceVoiceAssetReader voiceAssets,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    PilotMetrics? metrics = null)
 {
     public async Task<TimeSpan?> TryDeliverAsync(
         Guid intentId,
@@ -78,11 +80,13 @@ public sealed class OutboundChannelSender(
                     intent.TryMarkUnknown(
                         $"text_accepted_voice_{voiceResult.FailureCode}",
                         timeProvider.GetUtcNow());
+                    metrics?.DeliveryException(channel.ToString(), "voice_unknown_or_failed");
                 }
 
                 break;
             case First10.Modules.Intake.ChannelDeliveryStatus.Failed:
                 intent.TryMarkFailed(textResult.FailureCode, now);
+                metrics?.DeliveryException(channel.ToString(), "failed");
                 if (intent.CanAttemptDelivery)
                 {
                     retry = TimeSpan.FromSeconds(intent.AttemptCount == 1 ? 5 : 15);
@@ -92,6 +96,7 @@ public sealed class OutboundChannelSender(
             default:
                 // Provider may have accepted the message. Unknown is terminal for automatic retries.
                 intent.TryMarkUnknown(textResult.FailureCode, now);
+                metrics?.DeliveryException(channel.ToString(), "unknown");
                 break;
         }
 

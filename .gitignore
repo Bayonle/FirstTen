@@ -8,6 +8,8 @@
 **/obj/
 TestResults/
 coverage/
+web/test-results/
+web/playwright-report/
 
 node_modules/
 web/dist/

@@ -7,6 +7,7 @@ using First10.Modules.IdentityAudit;
 using First10.Modules.Incidents;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Infrastructure.Modules.Dispatch;
 
@@ -17,7 +18,8 @@ public sealed record DispatchTransitionOutcome(
 public sealed class DispatchTransitionProcessor(
     First10DbContext database,
     GuidanceIntentProcessor guidance,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    PilotMetrics? metrics = null)
 {
     public async Task<DispatchTransitionOutcome> ApplyAsync(
         TransitionIncidentDispatch command,
@@ -129,6 +131,10 @@ public sealed class DispatchTransitionProcessor(
             command.TargetStatus.ToString().ToLowerInvariant(),
             purpose,
             cancellationToken);
+        if (command.TargetStatus == DispatchStatus.Dispatched)
+        {
+            metrics?.Dispatched(now - incident.CreatedAtUtc);
+        }
         await transaction.CommitAsync(cancellationToken);
         return new DispatchTransitionOutcome(
             DispatchTransitionResult.Applied,

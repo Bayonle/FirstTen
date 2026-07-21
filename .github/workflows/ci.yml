@@ -51,6 +51,13 @@ jobs:
       - name: Test frontend
         run: npm --prefix web run test
 
+      - name: Install browser test runtime
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Test critical browser flows
+        run: npm --prefix web run test:e2e
+
       - name: Build frontend
         run: npm --prefix web run build
 
