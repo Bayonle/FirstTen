@@ -112,6 +112,7 @@ public sealed class SingletonIncidentDecisionProcessor(
             cancellationToken);
         var now = timeProvider.GetUtcNow();
         if (incident is null
+            || command.ExpectedVersion.HasValue && incident.Version != command.ExpectedVersion.Value
             || !incident.TryApplySingletonReviewDecision(command.Decision, command.Reason, now))
         {
             await transaction.CommitAsync(cancellationToken);

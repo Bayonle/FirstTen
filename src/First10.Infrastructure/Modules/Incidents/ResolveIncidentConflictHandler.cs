@@ -26,6 +26,7 @@ public sealed class IncidentConflictResolutionProcessor(
         var now = timeProvider.GetUtcNow();
         if (incident is null
             || conflict is null
+            || command.ExpectedVersion.HasValue && incident.Version != command.ExpectedVersion.Value
             || !incident.TryResolveConflict(
                 command.ConflictId,
                 command.SelectedReportId,

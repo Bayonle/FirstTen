@@ -1,0 +1,23 @@
+{
+  "majorVersion": 1,
+  "requiredEndpoints": [
+    { "method": "GET", "path": "/api/incidents" },
+    { "method": "GET", "path": "/api/incidents/{incidentId}" },
+    { "method": "GET", "path": "/api/incidents/{incidentId}/timeline" },
+    { "method": "POST", "path": "/api/incidents/{incidentId}/review" },
+    { "method": "POST", "path": "/api/incidents/{incidentId}/dispatch" },
+    { "method": "POST", "path": "/api/incidents/{incidentId}/notes" },
+    { "method": "POST", "path": "/api/incidents/{incidentId}/conflicts/{conflictId}/resolve" },
+    { "method": "GET", "path": "/api/media/{assetId}" },
+    { "method": "GET", "path": "/api/guidance/templates" },
+    { "method": "POST", "path": "/api/guidance/templates" },
+    { "method": "POST", "path": "/api/guidance/templates/{templateId}/approve" },
+    { "method": "POST", "path": "/api/guidance/intents/{intentId}/retry" },
+    { "method": "GET", "path": "/api/recognition/aggregates" },
+    { "method": "GET", "path": "/api/recognition/reconciliation" },
+    { "method": "GET", "path": "/api/operations/activation" },
+    { "method": "GET", "path": "/api/operations/health" },
+    { "method": "GET", "path": "/api/operations/audit" },
+    { "method": "GET", "path": "/api/operations/users" }
+  ]
+}

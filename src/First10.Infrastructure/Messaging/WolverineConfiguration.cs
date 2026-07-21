@@ -11,6 +11,7 @@ using First10.Modules.Dispatch;
 using First10.Modules.Guidance;
 using First10.Modules.BuildingBlocks.Contracts;
 using First10.Modules.Recognition;
+using System.Reflection;
 
 namespace First10.Infrastructure.Messaging;
 
@@ -19,7 +20,8 @@ public static class WolverineConfiguration
     public static void Configure(
         WolverineOptions options,
         string connectionString,
-        First10RuntimeRole role)
+        First10RuntimeRole role,
+        Assembly? endpointAssembly = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
@@ -31,6 +33,10 @@ public static class WolverineConfiguration
         options.UseEntityFrameworkCoreTransactions();
         options.Policies.AutoApplyTransactions();
         options.Discovery.IncludeAssembly(typeof(AcceptInboundEnvelopeHandler).Assembly);
+        if (endpointAssembly is not null)
+        {
+            options.Discovery.IncludeAssembly(endpointAssembly);
+        }
         options.PublishMessage<AcceptInboundEnvelope>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<RemindMissingLocation>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<ExpireGuidedSession>().ToPostgresqlQueue(First10Queues.FastIntake);
@@ -52,6 +58,7 @@ public static class WolverineConfiguration
         options.PublishMessage<ContributionDispatcherVerified>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<SetRecognitionConsent>().ToPostgresqlQueue(First10Queues.FastIntake);
         options.PublishMessage<AdjustRecognitionAward>().ToPostgresqlQueue(First10Queues.FastIntake);
+        options.PublishMessage<IncidentChanged>().ToPostgresqlQueue(First10Queues.UiNotifications);
 
         if (role is First10RuntimeRole.Api)
         {

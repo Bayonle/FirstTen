@@ -175,6 +175,17 @@ public sealed class Incident
         return true;
     }
 
+    public bool TryAdvanceOperationalVersion(int expectedVersion)
+    {
+        if (expectedVersion != Version)
+        {
+            return false;
+        }
+
+        Version++;
+        return true;
+    }
+
     public bool TryAttachObservation(IncidentObservation observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
@@ -426,7 +437,8 @@ public sealed record ResolveIncidentConflict(
     Guid IncidentId,
     Guid ConflictId,
     Guid SelectedReportId,
-    string ResolvedBy);
+    string ResolvedBy,
+    int? ExpectedVersion = null);
 
 public sealed record DecideSingletonIncident(
     Guid DecisionId,
@@ -434,7 +446,8 @@ public sealed record DecideSingletonIncident(
     SingletonReviewDecision Decision,
     string DecidedBy,
     string? Reason,
-    string? ReviewedIncidentLga = null);
+    string? ReviewedIncidentLga = null,
+    int? ExpectedVersion = null);
 
 public sealed class IncidentSourceReport
 {
