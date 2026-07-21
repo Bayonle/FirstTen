@@ -10,10 +10,17 @@ namespace First10.Infrastructure.Modules.Intake.OpenAI;
 
 public sealed class OpenAiTranscriptionClient(
     HttpClient httpClient,
-    IConfiguration configuration) : IReporterAudioTranscriber
+    IConfiguration configuration,
+    ApprovedOpenAiProfile approvedProfile) : IReporterAudioTranscriber
 {
-    public const string Model = "gpt-4o-transcribe";
+    public const string DefaultModel = "gpt-4o-transcribe";
+    public const string Model = DefaultModel;
     private const int MaximumBytes = 25 * 1024 * 1024;
+
+    public OpenAiTranscriptionClient(HttpClient httpClient, IConfiguration configuration)
+        : this(httpClient, configuration, new ApprovedOpenAiProfile(configuration))
+    {
+    }
 
     public async Task<ReporterTranscript> TranscribeAsync(
         ReadOnlyMemory<byte> safeAudio,
@@ -28,13 +35,15 @@ public sealed class OpenAiTranscriptionClient(
         }
 
         var extension = ContentTypeToExtension(contentType);
+        var model = approvedProfile.RequireModel(OpenAiWorkload.Transcription);
         using var request = new HttpRequestMessage(HttpMethod.Post, "audio/transcriptions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ReadApiKey());
+        approvedProfile.ApplyProjectHeader(request);
         using var form = new MultipartFormDataContent();
         var file = new ReadOnlyMemoryContent(safeAudio);
         file.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
         form.Add(file, "file", $"safe-audio.{extension}");
-        form.Add(new StringContent(Model), "model");
+        form.Add(new StringContent(model), "model");
         form.Add(new StringContent("json"), "response_format");
         form.Add(new StringContent("true"), "include[]=logprobs");
         request.Content = form;
@@ -65,7 +74,7 @@ public sealed class OpenAiTranscriptionClient(
                 sourceOccurredAtUtc,
                 confidence,
                 ToQuality(confidence),
-                Model,
+                model,
                 payload.Usage?.InputTokens ?? 0,
                 payload.Usage?.OutputTokens ?? 0);
         }

@@ -21,15 +21,19 @@ public static class WolverineConfiguration
         WolverineOptions options,
         string connectionString,
         First10RuntimeRole role,
-        Assembly? endpointAssembly = null)
+        Assembly? endpointAssembly = null,
+        bool autoProvision = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        options.UsePostgresqlPersistenceAndTransport(
+        var persistence = options.UsePostgresqlPersistenceAndTransport(
                 connectionString,
                 "wolverine",
-                transportSchema: "wolverine_queues")
-            .AutoProvision();
+                transportSchema: "wolverine_queues");
+        if (autoProvision)
+        {
+            persistence.AutoProvision();
+        }
         options.UseEntityFrameworkCoreTransactions();
         options.Policies.AutoApplyTransactions();
         options.Discovery.IncludeAssembly(typeof(AcceptInboundEnvelopeHandler).Assembly);

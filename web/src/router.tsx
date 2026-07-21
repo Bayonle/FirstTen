@@ -26,7 +26,14 @@ const indexRoute = createRoute({
   component: OperationsHome,
 })
 
-const incidentRoute = createRoute({ getParentRoute: () => rootRoute, path: '/incidents/$incidentId', component: IncidentWorkspace })
+const incidentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/incidents/$incidentId',
+  component: () => {
+    const { incidentId } = incidentRoute.useParams()
+    return <IncidentWorkspace key={incidentId} />
+  },
+})
 const guidanceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/guidance', component: GuidanceWorkspace })
 const recognitionRoute = createRoute({ getParentRoute: () => rootRoute, path: '/recognition', component: RecognitionWorkspace })
 const operationsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/operations', component: SystemOperations })

@@ -10,7 +10,7 @@
 1. Run `dotnet run --project src/First10.AppHost`.
 2. Use the Aspire dashboard to confirm PostgreSQL, MinIO, API, worker, and Vite are healthy.
 3. Bootstrap the first administrator, invite dispatcher and clinical accounts, and enroll MFA.
-4. Keep `Channels__WhatsApp__SandboxMode=true`; Telegram is test-only until activation passes.
+4. Keep `Channels__WhatsApp__SandboxMode=true` and explicitly set `Channels__WhatsApp__SandboxAllowedDestinations__0` to each test number; Telegram is test-only until activation passes.
 
 ## Deterministic checks
 

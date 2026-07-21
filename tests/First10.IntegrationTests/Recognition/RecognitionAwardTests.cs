@@ -72,17 +72,20 @@ public sealed class RecognitionAwardTests(Persistence.PostgresFixture postgres)
 
     private static async Task<int> CountPublicAwardsAsync(First10DbContext database, string lga)
     {
-        var latest = database.RecognitionConsentDecisions
-            .GroupBy(x => x.ReporterKey)
-            .Select(group => group.OrderByDescending(x => x.DecidedAtUtc).ThenByDescending(x => x.Id).First());
-        return await database.ContributionRecognitionAwards
+        var decisions = await database.RecognitionConsentDecisions.AsNoTracking()
+            .OrderBy(x => x.DecidedAtUtc)
+            .ThenBy(x => x.Id)
+            .Select(x => new { x.ReporterKey, x.Choice })
+            .ToArrayAsync();
+        var optedIn = decisions.GroupBy(x => x.ReporterKey, StringComparer.Ordinal)
+            .Where(group => group.Last().Choice == RecognitionConsentChoice.OptIn)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        var awards = await database.ContributionRecognitionAwards.AsNoTracking()
             .Where(award => award.ReviewedIncidentLga == lga)
-            .Join(
-                latest.Where(x => x.Choice == RecognitionConsentChoice.OptIn),
-                award => award.ReporterKey,
-                consent => consent.ReporterKey,
-                (award, consent) => award)
-            .CountAsync();
+            .Select(award => award.ReporterKey)
+            .ToArrayAsync();
+        return awards.Count(optedIn.Contains);
     }
 
     private First10DbContext Database() => new(

@@ -8,7 +8,6 @@ using First10.Infrastructure.Modules.Intake.OpenAI;
 using First10.Modules.Intake.Triage;
 using First10.Modules.Intake.Media;
 using Amazon.S3;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using First10.Infrastructure.Persistence;
@@ -17,11 +16,12 @@ namespace First10.Infrastructure.Modules.Intake;
 
 public static class IntakeConfiguration
 {
-    public static IServiceCollection AddFirst10Intake(this IServiceCollection services)
+    public static IServiceCollection AddFirst10Intake(
+        this IServiceCollection services,
+        IConfiguration? configuration = null,
+        bool requireWrappedKeys = false)
     {
-        services.AddDataProtection()
-            .SetApplicationName("First10")
-            .PersistKeysToDbContext<First10DbContext>();
+        services.AddFirst10DataProtection(configuration, requireWrappedKeys);
         services.AddScoped<ProtectedContactIdentityResolver>();
         services.AddScoped<IContactIdentityResolver>(provider =>
             provider.GetRequiredService<ProtectedContactIdentityResolver>());
@@ -37,6 +37,7 @@ public static class IntakeConfiguration
         services.AddScoped<TriageSessionProcessor>();
         services.AddSingleton<OpenAiAudioPreparer>();
         services.AddSingleton<OpenAiSafetyIdentifier>();
+        services.AddSingleton<ApprovedOpenAiProfile>();
         services.AddSingleton<CorridorGazetteer>();
         services.AddSingleton(TimeProvider.System);
         services.AddHttpClient<IReporterAudioTranscriber, OpenAiTranscriptionClient>(client =>

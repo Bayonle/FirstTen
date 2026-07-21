@@ -26,82 +26,167 @@ public sealed class OutboundChannelSender(
         Guid intentId,
         CancellationToken cancellationToken = default)
     {
-        var intent = await database.GuidanceIntents.SingleOrDefaultAsync(
-            x => x.Id == intentId,
+        await database.Database.OpenConnectionAsync(cancellationToken);
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_lock(hashtext({intentId.ToString()}))",
             cancellationToken);
-        if (intent is null || !intent.CanAttemptDelivery)
+        try
         {
-            return null;
-        }
+            var intent = await database.GuidanceIntents.SingleOrDefaultAsync(
+                x => x.Id == intentId,
+                cancellationToken);
+            if (intent is null || !intent.CanAttemptDelivery)
+            {
+                return null;
+            }
 
-        var voice = await voiceAssets.ReadVerifiedAsync(
-            intent.VoiceAssetKey,
-            intent.VoiceSha256,
-            cancellationToken);
-        if (voice is null)
-        {
-            intent.TryMarkFailed("guidance_voice_asset_unavailable", timeProvider.GetUtcNow());
-            await database.SaveChangesAsync(cancellationToken);
-            return intent.CanAttemptDelivery
-                ? TimeSpan.FromSeconds(intent.AttemptCount == 1 ? 5 : 15)
-                : null;
-        }
+            var attempts = await database.GuidanceDeliveryAttempts
+                .Where(x => x.GuidanceIntentId == intentId)
+                .OrderBy(x => x.AttemptNumber)
+                .ToListAsync(cancellationToken);
+            var interrupted = attempts.FirstOrDefault(x => x.Status == GuidanceDeliveryAttemptStatus.Started);
+            if (interrupted is not null)
+            {
+                var now = timeProvider.GetUtcNow();
+                interrupted.TryComplete(
+                    GuidanceDeliveryAttemptStatus.Unknown,
+                    now,
+                    null,
+                    "provider_outcome_unknown_after_interruption");
+                intent.TryMarkUnknown("provider_outcome_unknown_after_interruption", now);
+                await database.SaveChangesAsync(cancellationToken);
+                metrics?.DeliveryException(intent.Channel.ToString(), "interrupted_unknown");
+                return null;
+            }
 
-        // Destination plaintext exists only inside this Intake-owned boundary and is never persisted.
-        var destination = await contacts.ResolveDestinationAsync(intent.ContactReference, cancellationToken);
-        var channel = intent.Channel switch
-        {
-            GuidanceChannel.Telegram => First10.Modules.Intake.IntakeChannel.Telegram,
-            GuidanceChannel.WhatsApp => First10.Modules.Intake.IntakeChannel.WhatsApp,
-            _ => throw new InvalidOperationException("Unsupported guidance delivery channel.")
-        };
-        var sender = senders.Single(x => x.Channel == channel);
-        var textResult = await sender.SendAsync(destination, intent.ExactText, cancellationToken);
-        var now = timeProvider.GetUtcNow();
-        TimeSpan? retry = null;
-        switch (textResult.Status)
-        {
-            case First10.Modules.Intake.ChannelDeliveryStatus.Accepted:
+            var voice = await voiceAssets.ReadVerifiedAsync(
+                intent.VoiceAssetKey,
+                intent.VoiceSha256,
+                cancellationToken);
+            if (voice is null)
+            {
+                intent.TryMarkFailed("guidance_voice_asset_unavailable", timeProvider.GetUtcNow());
+                await database.SaveChangesAsync(cancellationToken);
+                return intent.CanAttemptDelivery
+                    ? TimeSpan.FromSeconds(intent.AttemptCount == 1 ? 5 : 15)
+                    : null;
+            }
+
+            // Destination plaintext exists only inside this Intake-owned boundary and is never persisted.
+            var destination = await contacts.ResolveDestinationAsync(intent.ContactReference, cancellationToken);
+            var channel = intent.Channel switch
+            {
+                GuidanceChannel.Telegram => First10.Modules.Intake.IntakeChannel.Telegram,
+                GuidanceChannel.WhatsApp => First10.Modules.Intake.IntakeChannel.WhatsApp,
+                _ => throw new InvalidOperationException("Unsupported guidance delivery channel.")
+            };
+            var sender = senders.Single(x => x.Channel == channel);
+            var acceptedText = attempts.LastOrDefault(x =>
+                x.Component == GuidanceDeliveryComponent.Text
+                && x.Status is GuidanceDeliveryAttemptStatus.Accepted or GuidanceDeliveryAttemptStatus.Delivered);
+            ProviderSendResult textResult;
+            if (acceptedText is not null)
+            {
+                textResult = ProviderSendResult.Accepted(acceptedText.ProviderMessageId!);
+            }
+            else
+            {
+                var textAttempt = GuidanceDeliveryAttempt.Start(
+                    intent.Id,
+                    GuidanceDeliveryComponent.Text,
+                    attempts.Count(x => x.Component == GuidanceDeliveryComponent.Text) + 1,
+                    timeProvider.GetUtcNow());
+                database.GuidanceDeliveryAttempts.Add(textAttempt);
+                await database.SaveChangesAsync(cancellationToken);
+                textResult = await sender.SendAsync(destination, intent.ExactText, cancellationToken);
+                Complete(textAttempt, textResult, timeProvider.GetUtcNow());
+                await database.SaveChangesAsync(cancellationToken);
+            }
+
+            if (textResult.Status != First10.Modules.Intake.ChannelDeliveryStatus.Accepted)
+            {
+                var now = timeProvider.GetUtcNow();
+                if (textResult.Status == First10.Modules.Intake.ChannelDeliveryStatus.Failed)
+                {
+                    intent.TryMarkFailed(textResult.FailureCode, now);
+                    metrics?.DeliveryException(channel.ToString(), "failed");
+                }
+                else
+                {
+                    intent.TryMarkUnknown(textResult.FailureCode, now);
+                    metrics?.DeliveryException(channel.ToString(), "unknown");
+                }
+
+                await database.SaveChangesAsync(cancellationToken);
+                return intent.CanAttemptDelivery
+                    ? TimeSpan.FromSeconds(intent.AttemptCount == 1 ? 5 : 15)
+                    : null;
+            }
+
+            var acceptedVoice = attempts.LastOrDefault(x =>
+                x.Component == GuidanceDeliveryComponent.Voice
+                && x.Status is GuidanceDeliveryAttemptStatus.Accepted or GuidanceDeliveryAttemptStatus.Delivered);
+            ProviderSendResult voiceResult;
+            if (acceptedVoice is not null)
+            {
+                voiceResult = ProviderSendResult.Accepted(acceptedVoice.ProviderMessageId!);
+            }
+            else
+            {
+                var voiceAttempt = GuidanceDeliveryAttempt.Start(
+                    intent.Id,
+                    GuidanceDeliveryComponent.Voice,
+                    attempts.Count(x => x.Component == GuidanceDeliveryComponent.Voice) + 1,
+                    timeProvider.GetUtcNow());
+                database.GuidanceDeliveryAttempts.Add(voiceAttempt);
+                await database.SaveChangesAsync(cancellationToken);
                 var voiceSender = voiceSenders.Single(x => x.Channel == channel);
-                var voiceResult = await voiceSender.SendVoiceAsync(
+                voiceResult = await voiceSender.SendVoiceAsync(
                     destination,
                     voice.Bytes,
                     voice.ContentType,
                     cancellationToken);
-                if (voiceResult.Status == First10.Modules.Intake.ChannelDeliveryStatus.Accepted)
-                {
-                    intent.TryMarkAccepted(
-                        $"text:{textResult.ProviderMessageId};voice:{voiceResult.ProviderMessageId}",
-                        timeProvider.GetUtcNow());
-                }
-                else
-                {
-                    // Text may already be visible. Never resend the composite automatically.
-                    intent.TryMarkUnknown(
-                        $"text_accepted_voice_{voiceResult.FailureCode}",
-                        timeProvider.GetUtcNow());
-                    metrics?.DeliveryException(channel.ToString(), "voice_unknown_or_failed");
-                }
+                Complete(voiceAttempt, voiceResult, timeProvider.GetUtcNow());
+            }
+            if (voiceResult.Status == First10.Modules.Intake.ChannelDeliveryStatus.Accepted)
+            {
+                intent.TryMarkAccepted(
+                    $"text:{textResult.ProviderMessageId};voice:{voiceResult.ProviderMessageId}",
+                    timeProvider.GetUtcNow());
+            }
+            else
+            {
+                // Text may already be visible. Never resend the composite automatically.
+                intent.TryMarkUnknown(
+                    $"text_accepted_voice_{voiceResult.FailureCode}",
+                    timeProvider.GetUtcNow());
+                metrics?.DeliveryException(channel.ToString(), "voice_unknown_or_failed");
+            }
 
-                break;
-            case First10.Modules.Intake.ChannelDeliveryStatus.Failed:
-                intent.TryMarkFailed(textResult.FailureCode, now);
-                metrics?.DeliveryException(channel.ToString(), "failed");
-                if (intent.CanAttemptDelivery)
-                {
-                    retry = TimeSpan.FromSeconds(intent.AttemptCount == 1 ? 5 : 15);
-                }
-
-                break;
-            default:
-                // Provider may have accepted the message. Unknown is terminal for automatic retries.
-                intent.TryMarkUnknown(textResult.FailureCode, now);
-                metrics?.DeliveryException(channel.ToString(), "unknown");
-                break;
+            await database.SaveChangesAsync(cancellationToken);
+            return null;
         }
+        finally
+        {
+            await database.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_unlock(hashtext({intentId.ToString()}))",
+                CancellationToken.None);
+            await database.Database.CloseConnectionAsync();
+        }
+    }
 
-        await database.SaveChangesAsync(cancellationToken);
-        return retry;
+    private static void Complete(
+        GuidanceDeliveryAttempt attempt,
+        ProviderSendResult result,
+        DateTimeOffset completedAtUtc)
+    {
+        var status = result.Status switch
+        {
+            First10.Modules.Intake.ChannelDeliveryStatus.Accepted => GuidanceDeliveryAttemptStatus.Accepted,
+            First10.Modules.Intake.ChannelDeliveryStatus.Failed => GuidanceDeliveryAttemptStatus.Failed,
+            _ => GuidanceDeliveryAttemptStatus.Unknown
+        };
+        attempt.TryComplete(status, completedAtUtc, result.ProviderMessageId, result.FailureCode);
     }
 }
 

@@ -28,7 +28,6 @@ public static class DispatchEndpoints
         DispatchTransitionRequest request,
         DispatchTransitionProcessor processor,
         First10DbContext database,
-        IMessageBus bus,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -60,16 +59,10 @@ public static class DispatchEndpoints
             return Results.Conflict(new { result = outcome.Result.ToString(), current });
         }
 
-        foreach (var intentId in outcome.DeliveryIntentIds)
-        {
-            await bus.PublishAsync(new DeliverGuidanceIntent(intentId));
-        }
-
         var state = await database.IncidentDispatches.AsNoTracking()
             .Where(x => x.IncidentId == incidentId)
             .Select(x => new { status = x.Status.ToString(), version = x.Version })
             .SingleAsync(cancellationToken);
-        await bus.PublishAsync(new IncidentChanged(incidentId, state.version, "dispatch", DateTimeOffset.UtcNow));
         return Results.Ok(new { incidentId, state.status, state.version, outcome.DeliveryIntentIds });
     }
 }

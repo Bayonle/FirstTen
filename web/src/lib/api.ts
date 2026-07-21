@@ -7,14 +7,10 @@ export class ApiError extends Error {
   }
 }
 
-let antiforgeryToken: string | null = null
-
 async function getAntiforgeryToken() {
-  if (antiforgeryToken) return antiforgeryToken
   const response = await fetch('/api/auth/antiforgery', { credentials: 'same-origin' })
   if (!response.ok) throw new ApiError(response.status, 'Could not establish a secure session.')
   const payload = (await response.json()) as { token: string }
-  antiforgeryToken = payload.token
   return payload.token
 }
 
@@ -56,10 +52,15 @@ export type IncidentSummary = {
   dispatchVersion: number
 }
 
-export type IncidentDetail = IncidentSummary & {
-  verifiedAtUtc?: string
-  rejectedAtUtc?: string
-  rejectionReason?: string
+export type IncidentDetail = {
+  id: string
+  verificationStatus: string
+  version: number
+  createdAtUtc: string
+  reviewDueAtUtc: string
+  verifiedAtUtc: string | null
+  rejectedAtUtc: string | null
+  rejectionReason: string | null
   dispatch: null | { status: string; version: number; updatedAtUtc: string; lastReopenReason?: string }
   sources: Array<{
     reportId: string
@@ -67,27 +68,30 @@ export type IncidentDetail = IncidentSummary & {
     receivedAtUtc: string
     incidentType: string
     severity: string
-    casualtyMinimum?: number
-    casualtyMaximum?: number
+    casualtyMinimum: number | null
+    casualtyMaximum: number | null
     victimState: string
     sceneState: string
-    locationDescription?: string
+    locationDescription: string | null
     direction: string
-    latitude?: number
-    longitude?: number
-    locationConfidence?: number
+    latitude: number | null
+    longitude: number | null
+    locationConfidence: number | null
     evidenceReferences: string[]
   }>
   conflicts: Array<{
     id: string
     field: string
     leftReportId: string
+    leftClaimId: string
     rightReportId: string
+    rightClaimId: string
     leftValue: string
     rightValue: string
     isResolved: boolean
-    selectedReportId?: string
-    resolvedAtUtc?: string
+    selectedReportId: string | null
+    selectedClaimId: string | null
+    resolvedAtUtc: string | null
   }>
   observations: Array<{
     id: string
@@ -96,7 +100,7 @@ export type IncidentDetail = IncidentSummary & {
     receivedAtUtc: string
     victimState: string
     sceneState: string
-    locationDescription?: string
+    locationDescription: string | null
     direction: string
     evidenceReference: string
   }>
@@ -108,8 +112,15 @@ export type IncidentDetail = IncidentSummary & {
     status: string
     createdAtUtc: string
     deadlineAtUtc: string
-    failureCode?: string
+    failureCode: string | null
   }>
+}
+
+export type CrewBriefing = {
+  incidentId: string
+  text: string
+  usedAiOrdering: boolean
+  claims: Array<{ claimId: string; sourceReportId: string | null; evidenceReferences: string[] }>
 }
 
 export type TimelineEvent = {
@@ -118,8 +129,8 @@ export type TimelineEvent = {
   source: string
   occurredAtUtc: string
   receivedAtUtc: string
-  latitude?: number
-  longitude?: number
+  latitude: number | null
+  longitude: number | null
   payloadJson: string
 }
 

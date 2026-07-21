@@ -9,8 +9,9 @@ RUN dotnet restore src/First10.Worker/First10.Worker.csproj
 COPY src/ src/
 RUN dotnet publish src/First10.Worker/First10.Worker.csproj --no-restore -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+EXPOSE 8080
 COPY --from=build /app/publish ./
 COPY assets/guidance /app/guidance
 USER $APP_UID

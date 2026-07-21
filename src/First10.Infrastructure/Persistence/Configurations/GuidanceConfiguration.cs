@@ -77,3 +77,24 @@ internal sealed class GuidanceIntentConfiguration : IEntityTypeConfiguration<Gui
         builder.Ignore(x => x.CanAttemptDelivery);
     }
 }
+
+internal sealed class GuidanceDeliveryAttemptConfiguration : IEntityTypeConfiguration<GuidanceDeliveryAttempt>
+{
+    public void Configure(EntityTypeBuilder<GuidanceDeliveryAttempt> builder)
+    {
+        builder.ToTable("delivery_attempts", "guidance");
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => new { x.GuidanceIntentId, x.Component, x.AttemptNumber }).IsUnique();
+        builder.HasIndex(x => x.ProviderMessageId)
+            .IsUnique()
+            .HasFilter("\"ProviderMessageId\" IS NOT NULL");
+        builder.Property(x => x.Component).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(24).IsConcurrencyToken();
+        builder.Property(x => x.ProviderMessageId).HasMaxLength(160);
+        builder.Property(x => x.FailureCode).HasMaxLength(80);
+        builder.HasOne<GuidanceIntent>()
+            .WithMany()
+            .HasForeignKey(x => x.GuidanceIntentId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

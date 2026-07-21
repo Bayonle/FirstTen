@@ -181,7 +181,7 @@ public sealed class WhatsAppChannelMessageSender(
         string text,
         CancellationToken cancellationToken = default)
     {
-        if (!await activationGate.CanUseWhatsAppAsync(cancellationToken))
+        if (!await activationGate.CanUseWhatsAppAsync(destination, cancellationToken))
         {
             return ProviderSendResult.Failed("whatsapp_activation_gate_closed");
         }
@@ -246,7 +246,7 @@ public sealed class WhatsAppChannelMessageSender(
         string contentType,
         CancellationToken cancellationToken = default)
     {
-        if (!await activationGate.CanUseWhatsAppAsync(cancellationToken))
+        if (!await activationGate.CanUseWhatsAppAsync(destination, cancellationToken))
         {
             return ProviderSendResult.Failed("whatsapp_activation_gate_closed");
         }

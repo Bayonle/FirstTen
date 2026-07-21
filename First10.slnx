@@ -18,5 +18,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/First10.GuidanceAssets/First10.GuidanceAssets.csproj" />
+    <Project Path="tools/First10.Migrator/First10.Migrator.csproj" />
   </Folder>
 </Solution>

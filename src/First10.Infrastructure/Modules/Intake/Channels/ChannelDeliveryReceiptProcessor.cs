@@ -1,6 +1,7 @@
 using First10.Infrastructure.Modules.Intake.Channels.WhatsApp;
 using First10.Infrastructure.Persistence;
 using First10.Modules.Intake;
+using First10.Modules.Guidance;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -18,18 +19,51 @@ public sealed class ChannelDeliveryReceiptProcessor(First10DbContext database)
             cancellationToken);
         if (intent is null)
         {
-            var exists = await database.IntakeRecoveryItems.AnyAsync(
-                x => x.Channel == IntakeChannel.WhatsApp
-                     && x.ProviderMessageId == receipt.ProviderMessageId
-                     && x.Reason == "unknown_delivery_receipt",
+            var guidanceAttempt = await database.GuidanceDeliveryAttempts.SingleOrDefaultAsync(
+                x => x.ProviderMessageId == receipt.ProviderMessageId,
                 cancellationToken);
-            if (!exists)
+            if (guidanceAttempt is not null)
             {
-                database.IntakeRecoveryItems.Add(IntakeRecoveryItem.Create(
-                    IntakeChannel.WhatsApp,
-                    receipt.ProviderMessageId,
-                    "unknown_delivery_receipt",
-                    receipt.OccurredAtUtc));
+                guidanceAttempt.TryApplyReceipt(
+                    receipt.Status == ChannelDeliveryStatus.Delivered,
+                    receipt.FailureCode,
+                    receipt.OccurredAtUtc);
+                var guidanceIntent = await database.GuidanceIntents.SingleAsync(
+                    x => x.Id == guidanceAttempt.GuidanceIntentId,
+                    cancellationToken);
+                if (receipt.Status == ChannelDeliveryStatus.Failed)
+                {
+                    guidanceIntent.TryApplyReceipt(false, receipt.FailureCode, receipt.OccurredAtUtc);
+                }
+                else
+                {
+                    var componentStatuses = await database.GuidanceDeliveryAttempts
+                        .Where(x => x.GuidanceIntentId == guidanceAttempt.GuidanceIntentId)
+                        .ToArrayAsync(cancellationToken);
+                    var fullyDelivered = Enum.GetValues<GuidanceDeliveryComponent>().All(component =>
+                        componentStatuses.Any(x => x.Component == component
+                                                   && x.Status == GuidanceDeliveryAttemptStatus.Delivered));
+                    if (fullyDelivered)
+                    {
+                        guidanceIntent.TryApplyReceipt(true, null, receipt.OccurredAtUtc);
+                    }
+                }
+            }
+            else
+            {
+                var exists = await database.IntakeRecoveryItems.AnyAsync(
+                    x => x.Channel == IntakeChannel.WhatsApp
+                         && x.ProviderMessageId == receipt.ProviderMessageId
+                         && x.Reason == "unknown_delivery_receipt",
+                    cancellationToken);
+                if (!exists)
+                {
+                    database.IntakeRecoveryItems.Add(IntakeRecoveryItem.Create(
+                        IntakeChannel.WhatsApp,
+                        receipt.ProviderMessageId,
+                        "unknown_delivery_receipt",
+                        receipt.OccurredAtUtc));
+                }
             }
         }
         else

@@ -1,9 +1,11 @@
 {
   "majorVersion": 1,
+  "contractSha256": "34a4034da508d90bfd861ad6ee62b8d9c017c45fe852643b7f6149d0ee170e6e",
   "requiredEndpoints": [
     { "method": "GET", "path": "/api/incidents" },
     { "method": "GET", "path": "/api/incidents/{incidentId}" },
     { "method": "GET", "path": "/api/incidents/{incidentId}/timeline" },
+    { "method": "GET", "path": "/api/incidents/{incidentId}/briefing" },
     { "method": "POST", "path": "/api/incidents/{incidentId}/review" },
     { "method": "POST", "path": "/api/incidents/{incidentId}/dispatch" },
     { "method": "POST", "path": "/api/incidents/{incidentId}/notes" },

@@ -150,6 +150,74 @@ public sealed class TriagePipelineTests(Persistence.PostgresFixture postgres)
             x.SessionId == sessionId && x.Prompt == IntakePrompt.ManualReviewFallback).ToArrayAsync());
     }
 
+    [Fact]
+    public async Task RepeatedMediaUsesLatestOccurredInputWithDeterministicAssetTieBreak()
+    {
+        var openedAt = DateTimeOffset.UtcNow;
+        await using var provider = await CreateProviderAsync();
+        Guid sessionId;
+        Guid expectedAudioAssetId;
+        Guid expectedImageAssetId;
+        await using (var setupScope = provider.CreateAsyncScope())
+        {
+            var database = setupScope.ServiceProvider.GetRequiredService<First10DbContext>();
+            var first = Envelope(openedAt);
+            var session = GuidedIntakeSession.Open(Guid.NewGuid(), first, TimeSpan.FromMinutes(2));
+            var repeatedAt = openedAt.AddSeconds(3);
+            Assert.True(session.TryAttach(RepeatedEnvelope(session, "voice-second", IntakeContentKind.Voice, repeatedAt)));
+            Assert.True(session.TryAttach(RepeatedEnvelope(session, "photo-first", IntakeContentKind.Photo, openedAt.AddSeconds(2))));
+            Assert.True(session.TryAttach(RepeatedEnvelope(session, "photo-second", IntakeContentKind.Photo, repeatedAt)));
+
+            var audioInputs = session.Inputs.Where(x => x.ContentKind == IntakeContentKind.Voice).ToArray();
+            var imageInputs = session.Inputs.Where(x => x.ContentKind == IntakeContentKind.Photo).ToArray();
+            expectedAudioAssetId = audioInputs
+                .OrderByDescending(x => x.OccurredAtUtc)
+                .ThenByDescending(x => x.Id)
+                .First().Id;
+            expectedImageAssetId = imageInputs
+                .OrderByDescending(x => x.OccurredAtUtc)
+                .ThenByDescending(x => x.Id)
+                .First().Id;
+
+            database.GuidedIntakeSessions.Add(session);
+            database.TriageCases.Add(TriageCase.Open(session.Id, openedAt));
+            database.IntakeMediaAssets.AddRange(audioInputs.Select(input => StoredAsset(
+                input,
+                IntakeMediaKind.Audio,
+                "audio/wav",
+                openedAt)));
+            database.IntakeMediaAssets.AddRange(imageInputs.Select(input => StoredAsset(
+                input,
+                IntakeMediaKind.Image,
+                "image/jpeg",
+                openedAt)));
+            await database.SaveChangesAsync();
+            sessionId = session.Id;
+        }
+
+        var reader = new RecordingSafeMediaReader();
+        var triageProvider = new FakeTriageProvider();
+        await using (var processingScope = provider.CreateAsyncScope())
+        {
+            var processor = new TriageSessionProcessor(
+                processingScope.ServiceProvider.GetRequiredService<First10DbContext>(),
+                reader,
+                new OpenAiAudioPreparer(),
+                new FakeTranscriber(),
+                triageProvider,
+                new OpenAiSafetyIdentifier(Configuration()),
+                new CorridorGazetteer([]),
+                Configuration(),
+                new FixedTimeProvider(openedAt.AddSeconds(5)));
+
+            await processor.ProcessAsync(sessionId);
+        }
+
+        Assert.Equal([expectedAudioAssetId, expectedImageAssetId], reader.ReadAssetIds);
+        Assert.Equal($"transcript:{expectedAudioAssetId:N}", triageProvider.Request!.Transcript.EvidenceReference);
+        Assert.Equal($"image:{expectedImageAssetId:N}", triageProvider.Request.ImageEvidenceReference);
+    }
+
     private async Task<ServiceProvider> CreateProviderAsync()
     {
         var services = new ServiceCollection();
@@ -182,6 +250,41 @@ public sealed class TriagePipelineTests(Persistence.PostgresFixture postgres)
         CorrelationKey = "triage-pipeline"
     };
 
+    private static InboundChannelEnvelope RepeatedEnvelope(
+        GuidedIntakeSession session,
+        string providerMessageId,
+        IntakeContentKind kind,
+        DateTimeOffset occurredAtUtc) => new()
+        {
+            SchemaVersion = 1,
+            Channel = session.Channel,
+            ProviderMessageId = providerMessageId,
+            ReporterKey = session.ReporterKey,
+            ContactReference = session.ContactReference,
+            ContentKind = kind,
+            ProviderMediaHandle = $"provider-{providerMessageId}",
+            OccurredAtUtc = occurredAtUtc,
+            CorrelationKey = session.CorrelationKey
+        };
+
+    private static IntakeMediaAsset StoredAsset(
+        GuidedSessionInput input,
+        IntakeMediaKind kind,
+        string contentType,
+        DateTimeOffset openedAt)
+    {
+        var asset = IntakeMediaAsset.Create(input.Id, input.SessionId, kind, openedAt);
+        Assert.True(asset.TryMarkStored(
+            $"safe/{kind.ToString().ToLowerInvariant()}/{input.Id:N}",
+            contentType,
+            15,
+            "test-v1",
+            "test-privacy-v1",
+            openedAt.AddSeconds(4),
+            openedAt.AddDays(30)));
+        return asset;
+    }
+
     private sealed class FakeSafeMediaReader(byte[] content) : ISafeMediaReader
     {
         public Task<SafeMediaContent> ReadAsync(
@@ -191,6 +294,25 @@ public sealed class TriagePipelineTests(Persistence.PostgresFixture postgres)
             long expectedPlaintextLength,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new SafeMediaContent(content.ToArray(), contentType));
+    }
+
+    private sealed class RecordingSafeMediaReader : ISafeMediaReader
+    {
+        public List<Guid> ReadAssetIds { get; } = [];
+
+        public Task<SafeMediaContent> ReadAsync(
+            Guid assetId,
+            string objectKey,
+            string contentType,
+            long expectedPlaintextLength,
+            CancellationToken cancellationToken = default)
+        {
+            ReadAssetIds.Add(assetId);
+            var content = contentType == "audio/wav"
+                ? "RIFF-safe-audio"u8.ToArray()
+                : "blurred-image"u8.ToArray();
+            return Task.FromResult(new SafeMediaContent(content, contentType));
+        }
     }
 
     private sealed class FakeTranscriber : IReporterAudioTranscriber

@@ -10,21 +10,37 @@ export function LiveUpdates() {
   const [status, setStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
 
   useEffect(() => {
+    let disposed = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
     const connection = new HubConnectionBuilder()
       .withUrl('/hubs/operations')
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
       .build()
     connection.on('incidentChanged', (change: IncidentChange) => {
-      void queryClient.invalidateQueries({ queryKey: incidentQueries.all() })
+      if (disposed) return
+      void queryClient.invalidateQueries({ queryKey: incidentQueries.all(), exact: true })
       void queryClient.invalidateQueries({ queryKey: incidentQueries.detail(change.incidentId) })
       void queryClient.invalidateQueries({ queryKey: incidentQueries.timeline(change.incidentId) })
     })
-    connection.onreconnecting(() => setStatus('connecting'))
-    connection.onreconnected(() => setStatus('live'))
-    connection.onclose(() => setStatus('offline'))
-    connection.start().then(() => setStatus('live')).catch(() => setStatus('offline'))
+    connection.onreconnecting(() => { if (!disposed) setStatus('connecting') })
+    connection.onreconnected(() => { if (!disposed) setStatus('live') })
+    connection.onclose(() => { if (!disposed) setStatus('offline') })
+    const start = () => {
+      if (disposed) return
+      setStatus('connecting')
+      connection.start()
+        .then(() => { if (!disposed) setStatus('live') })
+        .catch(() => {
+          if (disposed) return
+          setStatus('offline')
+          retryTimer = setTimeout(start, 5_000)
+        })
+    }
+    start()
     return () => {
+      disposed = true
+      if (retryTimer) clearTimeout(retryTimer)
       void connection.stop()
     }
   }, [queryClient])

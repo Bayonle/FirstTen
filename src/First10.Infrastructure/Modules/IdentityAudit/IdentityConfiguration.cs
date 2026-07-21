@@ -1,8 +1,8 @@
 using First10.Infrastructure.Persistence;
 using First10.Modules.IdentityAudit;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace First10.Infrastructure.Modules.IdentityAudit;
@@ -15,11 +15,11 @@ public static class IdentityConfiguration
 
     public static IServiceCollection AddFirst10Identity(
         this IServiceCollection services,
-        bool requireSecureCookies = true)
+        bool requireSecureCookies = true,
+        IConfiguration? configuration = null,
+        bool requireWrappedKeys = false)
     {
-        services.AddDataProtection()
-            .SetApplicationName("First10")
-            .PersistKeysToDbContext<First10DbContext>();
+        services.AddFirst10DataProtection(configuration, requireWrappedKeys);
         services
             .AddIdentity<First10User, IdentityRole<Guid>>(options =>
             {

@@ -1,7 +1,7 @@
 ---
 title: "feat: Build the First10 live pilot"
 type: feat
-status: active
+status: complete
 date: 2026-07-20
 origin: docs/brainstorms/2026-07-20-first10-pilot-requirements.md
 deepened: 2026-07-20

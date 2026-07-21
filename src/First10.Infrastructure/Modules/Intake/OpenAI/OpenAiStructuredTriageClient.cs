@@ -12,9 +12,15 @@ namespace First10.Infrastructure.Modules.Intake.OpenAI;
 
 public sealed class OpenAiStructuredTriageClient(
     HttpClient httpClient,
-    IConfiguration configuration) : IStructuredTriageProvider
+    IConfiguration configuration,
+    ApprovedOpenAiProfile approvedProfile) : IStructuredTriageProvider
 {
-    public const string DefaultModel = "gpt-5.6-luna";
+    public OpenAiStructuredTriageClient(HttpClient httpClient, IConfiguration configuration)
+        : this(httpClient, configuration, new ApprovedOpenAiProfile(configuration))
+    {
+    }
+
+    public const string DefaultModel = "gpt-5.6-sol";
     public const string SchemaVersion = "triage-v1";
     public const string ImageDetail = "low";
 
@@ -63,7 +69,7 @@ public sealed class OpenAiStructuredTriageClient(
             });
         }
 
-        var model = configuration["OpenAI:TriageModel"] ?? DefaultModel;
+        var model = approvedProfile.RequireModel(OpenAiWorkload.Triage);
         var body = new JsonObject
         {
             ["model"] = model,
@@ -91,6 +97,7 @@ public sealed class OpenAiStructuredTriageClient(
             Content = JsonContent.Create(body)
         };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ReadApiKey());
+        approvedProfile.ApplyProjectHeader(message);
 
         try
         {

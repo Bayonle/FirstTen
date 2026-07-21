@@ -42,6 +42,7 @@ internal sealed class IncidentSourceReportConfiguration : IEntityTypeConfigurati
         builder.ToTable("source_reports", "incidents");
         builder.HasKey(x => x.ReportId);
         builder.HasIndex(x => new { x.IncidentId, x.OccurredAtUtc });
+        builder.HasIndex(x => new { x.OccurredAtUtc, x.IncidentId });
         builder.Property(x => x.ReporterIndependenceKey).HasMaxLength(64);
         builder.Property(x => x.VerifiedPilotIdentityKey).HasMaxLength(64);
         builder.Property(x => x.IncidentType).HasConversion<string>().HasMaxLength(64);

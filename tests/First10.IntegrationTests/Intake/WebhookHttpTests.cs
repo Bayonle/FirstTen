@@ -58,6 +58,8 @@ public sealed class WebhookHttpTests(Persistence.PostgresFixture postgres)
             builder.UseSetting("Channels:Telegram:WebhookSecret", TelegramSecret);
             builder.UseSetting("Channels:WhatsApp:AppSecret", MetaAppSecret);
             builder.UseSetting("Channels:WhatsApp:VerifyToken", MetaVerifyToken);
+            builder.UseSetting("Channels:WhatsApp:SandboxMode", "true");
+            builder.UseSetting("Channels:WhatsApp:SandboxAllowedDestinations:0", "2348001234567");
             builder.UseSetting("Security:ReporterPseudonymKey", PseudonymKey);
             builder.UseSetting("Security:ReporterContactKeyVersion", "http-test-v1");
             builder.UseEnvironment("Testing");

@@ -100,7 +100,8 @@ public sealed class OutboxDeliveryTests(PostgresFixture postgres)
             WolverineConfiguration.Configure(
                 wolverine,
                 postgres.ConnectionString,
-                First10RuntimeRole.Worker);
+                First10RuntimeRole.Worker,
+                autoProvision: true);
             wolverine.PublishMessage<OutboxProbe>().ToPostgresqlQueue(First10Queues.Maintenance);
             wolverine.Discovery.IncludeAssembly(typeof(OutboxProbeHandler).Assembly);
         });

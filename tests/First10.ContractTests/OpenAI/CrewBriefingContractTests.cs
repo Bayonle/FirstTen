@@ -25,7 +25,7 @@ public sealed class CrewBriefingContractTests
             "safety-incident-1"));
 
         Assert.Equal([claimId], result.OrderedClaimIds);
-        Assert.Equal("gpt-5.6-luna/reasoning-low/crew-briefing-order-v1", result.ModelConfiguration);
+        Assert.Equal("gpt-5.6-sol/reasoning-low/crew-briefing-order-v1", result.ModelConfiguration);
         using var document = JsonDocument.Parse(handler.Body!);
         var root = document.RootElement;
         Assert.False(root.GetProperty("store").GetBoolean());
@@ -108,7 +108,19 @@ public sealed class CrewBriefingContractTests
         .AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["OpenAI:ApiKey"] = "test-key-never-sent",
-            ["OpenAI:SafetyIdentifierKey"] = "contract-only-safety-key-00000000000001"
+            ["OpenAI:SafetyIdentifierKey"] = "contract-only-safety-key-00000000000001",
+            ["OpenAI:ProjectId"] = "project-contract",
+            ["OpenAI:Region"] = "global",
+            ["OpenAI:RetentionMode"] = "disabled",
+            ["OpenAI:TranscriptionModel"] = "gpt-4o-transcribe",
+            ["OpenAI:TriageModel"] = "gpt-5.6-sol",
+            ["OpenAI:CrewBriefingModel"] = OpenAiCrewBriefingOrderClient.DefaultModel,
+            ["OpenAI:ApprovedProfile:ProjectId"] = "project-contract",
+            ["OpenAI:ApprovedProfile:Region"] = "global",
+            ["OpenAI:ApprovedProfile:RetentionMode"] = "disabled",
+            ["OpenAI:ApprovedProfile:TranscriptionModel"] = "gpt-4o-transcribe",
+            ["OpenAI:ApprovedProfile:TriageModel"] = "gpt-5.6-sol",
+            ["OpenAI:ApprovedProfile:CrewBriefingModel"] = OpenAiCrewBriefingOrderClient.DefaultModel
         })
         .Build();
 

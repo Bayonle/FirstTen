@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using First10.Modules.Incidents;
 using Microsoft.Extensions.Configuration;
+using First10.Infrastructure.Modules.Intake.OpenAI;
 
 namespace First10.Infrastructure.Modules.Incidents;
 
@@ -27,10 +28,16 @@ public interface ICrewBriefingOrderProvider
 
 public sealed class OpenAiCrewBriefingOrderClient(
     HttpClient httpClient,
-    IConfiguration configuration) : ICrewBriefingOrderProvider
+    IConfiguration configuration,
+    ApprovedOpenAiProfile approvedProfile) : ICrewBriefingOrderProvider
 {
-    public const string DefaultModel = "gpt-5.6-luna";
+    public const string DefaultModel = "gpt-5.6-sol";
     public const string SchemaVersion = "crew-briefing-order-v1";
+
+    public OpenAiCrewBriefingOrderClient(HttpClient httpClient, IConfiguration configuration)
+        : this(httpClient, configuration, new ApprovedOpenAiProfile(configuration))
+    {
+    }
 
     private static readonly JsonSerializerOptions StrictJson = new(JsonSerializerDefaults.Web)
     {
@@ -48,7 +55,7 @@ public sealed class OpenAiCrewBriefingOrderClient(
             throw new CrewBriefingProviderException("crew_briefing_empty_projection");
         }
 
-        var model = configuration["OpenAI:CrewBriefingModel"] ?? DefaultModel;
+        var model = approvedProfile.RequireModel(OpenAiWorkload.CrewBriefing);
         var body = new JsonObject
         {
             ["model"] = model,
@@ -98,6 +105,7 @@ public sealed class OpenAiCrewBriefingOrderClient(
             Content = JsonContent.Create(body)
         };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ReadApiKey());
+        approvedProfile.ApplyProjectHeader(message);
 
         try
         {

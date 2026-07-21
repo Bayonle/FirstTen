@@ -5,9 +5,10 @@ Deploy one API image and one worker image from the same commit. PostgreSQL and p
 ## Before rollout
 
 1. Verify image digests, migration backup, restore-test evidence, key availability, and provider secret references.
-2. Run migrations with the worker migration service before accepting traffic.
-3. Confirm object versioning is off, lifecycle/backup expiry matches approved policy, and public buckets are impossible.
-4. Confirm `/alive`, `/health`, queue progress, audit-chain validity, guidance coverage, and activation blockers.
+2. Run `dotnet run --project tools/First10.Migrator -c Release` with the release migration identity. This applies EF migrations and provisions Wolverine storage once; normal API and worker identities must have `Infrastructure__AutoProvision=false` and `Infrastructure__ApplyMigrations=false`.
+3. Supply `Security__DataProtectionWrappingCertificateBase64` (PKCS#12) and its password from the secret manager. The wrapping private key must not be stored in PostgreSQL.
+4. Confirm object versioning is off, lifecycle/backup expiry matches approved policy, and public buckets are impossible.
+5. Confirm API and worker `/alive` and `/health`, queue progress, audit-chain validity, exact guidance transition coverage, and activation blockers.
 
 ## Rollout and rollback
 

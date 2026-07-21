@@ -70,6 +70,8 @@ public sealed class First10DbContext(DbContextOptions<First10DbContext> options)
 
     public DbSet<GuidanceIntent> GuidanceIntents => Set<GuidanceIntent>();
 
+    public DbSet<GuidanceDeliveryAttempt> GuidanceDeliveryAttempts => Set<GuidanceDeliveryAttempt>();
+
     public DbSet<ContributionRecognitionAward> ContributionRecognitionAwards => Set<ContributionRecognitionAward>();
 
     public DbSet<RecognitionConsentDecision> RecognitionConsentDecisions => Set<RecognitionConsentDecision>();

@@ -60,7 +60,7 @@ public sealed class TriageSessionProcessor(
         var assets = await database.IntakeMediaAssets
             .Where(x => x.SessionId == sessionId && x.Status == MediaProcessingStatus.Stored)
             .ToArrayAsync(cancellationToken);
-        var audioAsset = assets.SingleOrDefault(x => x.Kind == IntakeMediaKind.Audio);
+        var audioAsset = SelectLatestAsset(assets, session.Inputs, IntakeMediaKind.Audio);
         if (audioAsset?.SafeObjectKey is null
             || audioAsset.SafeContentType is null
             || audioAsset.SafeLength is null)
@@ -114,7 +114,7 @@ public sealed class TriageSessionProcessor(
                 audioInput.OccurredAtUtc,
                 deadlineToken);
 
-            var imageAsset = assets.SingleOrDefault(x => x.Kind == IntakeMediaKind.Image);
+            var imageAsset = SelectLatestAsset(assets, session.Inputs, IntakeMediaKind.Image);
             string? imageReference = null;
             if (imageAsset?.SafeObjectKey is not null
                 && imageAsset.SafeContentType == "image/jpeg"
@@ -292,6 +292,16 @@ public sealed class TriageSessionProcessor(
             .Where(category => category != First10.Modules.Intake.Triage.GuidanceCategory.None)
             .ToHashSet();
     }
+
+    private static IntakeMediaAsset? SelectLatestAsset(
+        IEnumerable<IntakeMediaAsset> assets,
+        IEnumerable<GuidedSessionInput> inputs,
+        IntakeMediaKind kind) =>
+        (from asset in assets
+         join input in inputs on asset.InputId equals input.Id
+         where asset.Kind == kind
+         orderby input.OccurredAtUtc descending, asset.Id descending
+         select asset).FirstOrDefault();
 
     private async Task<LateLocationEvidence?> TryApplyReporterPinAsync(
         TriageCase triageCase,

@@ -34,11 +34,6 @@ public static class WhatsAppWebhookEndpoints
             IPilotActivationGate activationGate,
             CancellationToken cancellationToken) =>
         {
-            if (!await activationGate.CanUseWhatsAppAsync(cancellationToken))
-            {
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-            }
-
             var body = await WebhookSecurity.ReadBoundedAsync(request, cancellationToken);
             if (body is null)
             {
@@ -58,12 +53,29 @@ public static class WhatsAppWebhookEndpoints
 
             try
             {
-                foreach (var message in adapter.Parse(body))
+                var messages = adapter.Parse(body);
+                var receipts = WhatsAppInboundAdapter.ParseDeliveryReceipts(body);
+                var allowed = messages.Count == 0
+                    ? await activationGate.CanUseWhatsAppAsync(cancellationToken: cancellationToken)
+                    : true;
+                foreach (var message in messages)
+                {
+                    allowed &= await activationGate.CanUseWhatsAppAsync(
+                        message.ProviderAddress,
+                        cancellationToken);
+                }
+
+                if (!allowed)
+                {
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                }
+
+                foreach (var message in messages)
                 {
                     await ingress.TryAcceptAsync(message, cancellationToken);
                 }
 
-                foreach (var receipt in WhatsAppInboundAdapter.ParseDeliveryReceipts(body))
+                foreach (var receipt in receipts)
                 {
                     await deliveryReceipts.ApplyAsync(receipt, cancellationToken);
                 }

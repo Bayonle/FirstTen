@@ -16,6 +16,9 @@ using First10.Api.Endpoints.Media;
 using First10.Api.Endpoints.Operations;
 using First10.Api.Endpoints.Recognition;
 using Wolverine;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,12 +27,14 @@ var databaseConnection = builder.Configuration.GetConnectionString("first10")
     ?? throw new InvalidOperationException("Connection string 'first10' is required.");
 builder.Services.AddFirst10Persistence(databaseConnection);
 var requireSecureCookies = !builder.Environment.IsDevelopment();
-builder.Services.AddFirst10Identity(requireSecureCookies);
-builder.Services.AddFirst10Intake();
+var requireWrappedKeys = !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing");
+builder.Services.AddFirst10Identity(requireSecureCookies, builder.Configuration, requireWrappedKeys);
+builder.Services.AddFirst10Intake(builder.Configuration, requireWrappedKeys);
 builder.Services.AddFirst10Incidents();
 builder.Services.AddFirst10DispatchAndGuidance();
 builder.Services.AddFirst10Recognition();
 builder.Services.AddFirst10Operations();
+builder.Services.AddFirst10ReadinessChecks();
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
@@ -50,8 +55,55 @@ builder.Host.UseWolverine(options => WolverineConfiguration.Configure(
     options,
     databaseConnection,
     First10RuntimeRole.Api,
-    typeof(Program).Assembly));
-builder.Services.AddOpenApi();
+    typeof(Program).Assembly,
+    builder.Configuration.GetValue("Infrastructure:AutoProvision", builder.Environment.IsDevelopment())));
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes = new Dictionary<string, IOpenApiSecurityScheme>
+        {
+            ["First10Session"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Cookie,
+                Name = "First10.Session",
+                Description = "MFA-backed First10 operator session cookie."
+            },
+            ["First10Antiforgery"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = "X-CSRF-TOKEN",
+                Description = "Token returned by GET /api/auth/antiforgery for state-changing requests."
+            }
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        var requirement = new OpenApiSecurityRequirement();
+        if (metadata.OfType<IAuthorizeData>().Any())
+        {
+            requirement[new OpenApiSecuritySchemeReference("First10Session", context.Document)] = [];
+        }
+
+        if (metadata.OfType<RequireAntiforgeryTokenAttribute>().Any())
+        {
+            requirement[new OpenApiSecuritySchemeReference("First10Antiforgery", context.Document)] = [];
+        }
+
+        if (requirement.Count > 0)
+        {
+            operation.Security ??= [];
+            operation.Security.Add(requirement);
+        }
+
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
 string[] productionTopology = ["api", "worker"];

@@ -14,6 +14,19 @@ namespace First10.ContractTests.OpenAI;
 public sealed class StructuredTriageContractTests
 {
     [Fact]
+    public void RuntimeModelDriftFromApprovedProfileFailsBeforeProviderUse()
+    {
+        var values = Configuration().AsEnumerable().ToDictionary(x => x.Key, x => x.Value);
+        values["OpenAI:TriageModel"] = "unapproved-model";
+        var drifted = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+        var exception = Assert.Throws<OpenAiProviderException>(() =>
+            new ApprovedOpenAiProfile(drifted).RequireModel(OpenAiWorkload.Triage));
+
+        Assert.Equal("openai_approved_profile_model_mismatch", exception.Code);
+    }
+
+    [Fact]
     public async Task TranscriptionUsesApprovedModelAndTurnsLogprobsIntoExplicitQuality()
     {
         var handler = new RecordingHandler(_ => JsonResponse("""
@@ -60,10 +73,10 @@ public sealed class StructuredTriageContractTests
         Assert.Equal(IncidentType.RoadTrafficCollision, result.Triage.IncidentType);
         Assert.Equal(123, result.InputTokens);
         Assert.Equal(45, result.OutputTokens);
-        Assert.Equal("gpt-5.6-luna/reasoning-low/triage-v1/image-low", result.ModelConfiguration);
+        Assert.Equal("gpt-5.6-sol/reasoning-low/triage-v1/image-low", result.ModelConfiguration);
         using var document = JsonDocument.Parse(handler.Body!);
         var root = document.RootElement;
-        Assert.Equal("gpt-5.6-luna", root.GetProperty("model").GetString());
+        Assert.Equal("gpt-5.6-sol", root.GetProperty("model").GetString());
         Assert.False(root.GetProperty("store").GetBoolean());
         Assert.Equal("safety-session-f6314c", root.GetProperty("safety_identifier").GetString());
         Assert.False(root.TryGetProperty("tools", out _));
@@ -221,7 +234,19 @@ public sealed class StructuredTriageContractTests
     private static IConfiguration Configuration() => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["OpenAI:ApiKey"] = "test-key-never-sent"
+            ["OpenAI:ApiKey"] = "test-key-never-sent",
+            ["OpenAI:ProjectId"] = "project-contract",
+            ["OpenAI:Region"] = "global",
+            ["OpenAI:RetentionMode"] = "disabled",
+            ["OpenAI:TranscriptionModel"] = OpenAiTranscriptionClient.DefaultModel,
+            ["OpenAI:TriageModel"] = OpenAiStructuredTriageClient.DefaultModel,
+            ["OpenAI:CrewBriefingModel"] = "gpt-5.6-sol",
+            ["OpenAI:ApprovedProfile:ProjectId"] = "project-contract",
+            ["OpenAI:ApprovedProfile:Region"] = "global",
+            ["OpenAI:ApprovedProfile:RetentionMode"] = "disabled",
+            ["OpenAI:ApprovedProfile:TranscriptionModel"] = OpenAiTranscriptionClient.DefaultModel,
+            ["OpenAI:ApprovedProfile:TriageModel"] = OpenAiStructuredTriageClient.DefaultModel,
+            ["OpenAI:ApprovedProfile:CrewBriefingModel"] = "gpt-5.6-sol"
         })
         .Build();
 

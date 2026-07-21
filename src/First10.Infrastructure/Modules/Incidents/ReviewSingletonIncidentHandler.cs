@@ -6,6 +6,7 @@ using First10.Modules.Incidents;
 using First10.Modules.Recognition;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 
 namespace First10.Infrastructure.Modules.Incidents;
 
@@ -77,7 +78,7 @@ public static class ReviewSingletonIncidentHandler
 public sealed class SingletonIncidentDecisionProcessor(
     First10DbContext database,
     TimeProvider timeProvider,
-    IMessageBus? bus = null)
+    IDbContextOutbox<First10DbContext>? outbox = null)
 {
     public async Task<bool> DecideAsync(
         DecideSingletonIncident command,
@@ -154,7 +155,7 @@ public sealed class SingletonIncidentDecisionProcessor(
             }),
             cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
-        if (command.Decision == SingletonReviewDecision.Verify && bus is not null)
+        if (command.Decision == SingletonReviewDecision.Verify && outbox is not null)
         {
             var reportIds = incident.SourceReports.Select(x => x.ReportId).ToArray();
             var triageCases = await database.TriageCases
@@ -172,7 +173,7 @@ public sealed class SingletonIncidentDecisionProcessor(
                 var language = triage.AuthoritativeAssessmentId.HasValue
                     ? triage.Assessments.Single(x => x.Id == triage.AuthoritativeAssessmentId.Value).Language.ToString()
                     : "English";
-                await bus.PublishAsync(new ContributionDispatcherVerified(
+                await outbox.PublishAsync(new ContributionDispatcherVerified(
                     source.ReportId,
                     incident.Id,
                     source.ReportId,
@@ -183,9 +184,15 @@ public sealed class SingletonIncidentDecisionProcessor(
                     ContributionRecognitionAward.NormalizeLga(command.ReviewedIncidentLga),
                     now));
             }
+
+            await database.SaveChangesAsync(cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
+        if (outbox is not null)
+        {
+            await outbox.FlushOutgoingMessagesAsync();
+        }
         return true;
     }
 }

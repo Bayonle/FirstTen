@@ -62,7 +62,11 @@ public sealed class GuidancePersistenceTests(Persistence.PostgresFixture postgre
     public async Task MissingClinicalApprovalCreatesVisibleBlockedIntent()
     {
         var origin = new DateTimeOffset(2039, 9, 23, 11, 0, 0, TimeSpan.Zero);
-        var caseId = await SeedTriageAsync("reporter-blocked", origin, ReportedLanguage.English);
+        var caseId = await SeedTriageAsync(
+            "reporter-blocked",
+            origin,
+            ReportedLanguage.English,
+            First10.Modules.Intake.Triage.GuidanceCategory.OkadaCollision);
         await using var database = Database();
         var processor = new GuidanceIntentProcessor(
             database,
@@ -217,7 +221,9 @@ public sealed class GuidancePersistenceTests(Persistence.PostgresFixture postgre
     private async Task<Guid> SeedTriageAsync(
         string reporterKey,
         DateTimeOffset occurredAtUtc,
-        ReportedLanguage language)
+        ReportedLanguage language,
+        First10.Modules.Intake.Triage.GuidanceCategory guidanceCategory =
+            First10.Modules.Intake.Triage.GuidanceCategory.RoadTrafficCollision)
     {
         await using var database = Database();
         await database.Database.MigrateAsync();
@@ -249,7 +255,7 @@ public sealed class GuidancePersistenceTests(Persistence.PostgresFixture postgre
                 "reviewed location",
                 TriageUncertainty.Low,
                 [new TriageEvidenceReference($"transcript:{caseId:N}", TriageEvidenceKind.Transcript)],
-                First10.Modules.Intake.Triage.GuidanceCategory.RoadTrafficCollision),
+                guidanceCategory),
             "integration/triage",
             occurredAtUtc.AddSeconds(4),
             1));

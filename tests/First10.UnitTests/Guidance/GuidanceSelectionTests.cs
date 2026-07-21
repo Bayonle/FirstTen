@@ -45,6 +45,26 @@ public sealed class GuidanceSelectionTests
         Assert.False(intent.TryMarkAccepted("provider-id", DateTimeOffset.UtcNow));
     }
 
+    [Fact]
+    public void StartedDeliveryAttemptCanBeClosedAsUnknownWithoutResending()
+    {
+        var started = DateTimeOffset.UtcNow;
+        var attempt = GuidanceDeliveryAttempt.Start(
+            Guid.NewGuid(), GuidanceDeliveryComponent.Text, 1, started);
+
+        Assert.True(attempt.TryComplete(
+            GuidanceDeliveryAttemptStatus.Unknown,
+            started.AddSeconds(5),
+            null,
+            "provider_outcome_unknown_after_interruption"));
+        Assert.Equal(GuidanceDeliveryAttemptStatus.Unknown, attempt.Status);
+        Assert.False(attempt.TryComplete(
+            GuidanceDeliveryAttemptStatus.Accepted,
+            started.AddSeconds(6),
+            "would-be-duplicate",
+            null));
+    }
+
     private static GuidanceTemplateSet CreateSet()
     {
         var drafts = new[]

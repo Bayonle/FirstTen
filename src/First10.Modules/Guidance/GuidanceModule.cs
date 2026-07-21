@@ -49,6 +49,86 @@ public enum GuidanceIntentStatus
     BlockedNoApprovedTemplate = 6
 }
 
+public enum GuidanceDeliveryComponent
+{
+    Text = 1,
+    Voice = 2
+}
+
+public enum GuidanceDeliveryAttemptStatus
+{
+    Started = 1,
+    Accepted = 2,
+    Delivered = 3,
+    Failed = 4,
+    Unknown = 5
+}
+
+public sealed class GuidanceDeliveryAttempt
+{
+    private GuidanceDeliveryAttempt()
+    {
+    }
+
+    public Guid Id { get; private set; }
+    public Guid GuidanceIntentId { get; private set; }
+    public GuidanceDeliveryComponent Component { get; private set; }
+    public int AttemptNumber { get; private set; }
+    public GuidanceDeliveryAttemptStatus Status { get; private set; }
+    public DateTimeOffset StartedAtUtc { get; private set; }
+    public DateTimeOffset? CompletedAtUtc { get; private set; }
+    public string? ProviderMessageId { get; private set; }
+    public string? FailureCode { get; private set; }
+
+    public static GuidanceDeliveryAttempt Start(
+        Guid intentId,
+        GuidanceDeliveryComponent component,
+        int attemptNumber,
+        DateTimeOffset startedAtUtc) => new()
+        {
+            Id = Guid.NewGuid(),
+            GuidanceIntentId = intentId,
+            Component = component,
+            AttemptNumber = attemptNumber,
+            Status = GuidanceDeliveryAttemptStatus.Started,
+            StartedAtUtc = startedAtUtc
+        };
+
+    public bool TryComplete(
+        GuidanceDeliveryAttemptStatus status,
+        DateTimeOffset completedAtUtc,
+        string? providerMessageId,
+        string? failureCode)
+    {
+        if (Status != GuidanceDeliveryAttemptStatus.Started
+            || status == GuidanceDeliveryAttemptStatus.Started
+            || status is GuidanceDeliveryAttemptStatus.Accepted or GuidanceDeliveryAttemptStatus.Delivered
+               && string.IsNullOrWhiteSpace(providerMessageId))
+        {
+            return false;
+        }
+
+        Status = status;
+        CompletedAtUtc = completedAtUtc;
+        ProviderMessageId = string.IsNullOrWhiteSpace(providerMessageId) ? null : providerMessageId;
+        FailureCode = string.IsNullOrWhiteSpace(failureCode) ? null : failureCode;
+        return true;
+    }
+
+    public bool TryApplyReceipt(bool delivered, string? failureCode, DateTimeOffset occurredAtUtc)
+    {
+        if (Status is not (GuidanceDeliveryAttemptStatus.Accepted or GuidanceDeliveryAttemptStatus.Unknown))
+        {
+            return false;
+        }
+
+        Status = delivered ? GuidanceDeliveryAttemptStatus.Delivered : GuidanceDeliveryAttemptStatus.Failed;
+        FailureCode = delivered ? null : failureCode ?? "provider_delivery_failed";
+        CompletedAtUtc = occurredAtUtc;
+        return true;
+    }
+}
+
 public sealed record GuidanceLocaleDraft(
     GuidanceLanguage Language,
     string ExactText,

@@ -24,6 +24,7 @@ public static class IncidentEndpoints
         group.MapGet("/", ListAsync).WithName("ListActiveIncidents");
         group.MapGet("/{incidentId:guid}", DetailAsync).WithName("GetIncidentDetail");
         group.MapGet("/{incidentId:guid}/timeline", TimelineAsync).WithName("GetIncidentTimeline");
+        group.MapGet("/{incidentId:guid}/briefing", BriefingAsync).WithName("GetIncidentCrewBriefing");
         group.MapPost("/{incidentId:guid}/review", ReviewAsync)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
         group.MapPost("/{incidentId:guid}/conflicts/{conflictId:guid}/resolve", ResolveConflictAsync)
@@ -73,6 +74,7 @@ public static class IncidentEndpoints
             .Include(x => x.SourceReports)
             .Include(x => x.Conflicts)
             .Include(x => x.Observations)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(x => x.Id == incidentId, cancellationToken);
         if (incident is null)
         {
@@ -136,11 +138,14 @@ public static class IncidentEndpoints
                 id = x.Id,
                 field = x.Field.ToString(),
                 x.LeftReportId,
+                x.LeftClaimId,
                 x.RightReportId,
+                x.RightClaimId,
                 x.LeftValue,
                 x.RightValue,
                 x.IsResolved,
                 x.SelectedReportId,
+                x.SelectedClaimId,
                 x.ResolvedAtUtc
             }),
             observations = incident.Observations.Select(x => new
@@ -156,6 +161,38 @@ public static class IncidentEndpoints
                 x.EvidenceReference
             }),
             guidance
+        });
+    }
+
+    private static async Task<IResult> BriefingAsync(
+        Guid incidentId,
+        First10DbContext database,
+        CrewBriefingGenerator generator,
+        CancellationToken cancellationToken)
+    {
+        var incident = await database.Incidents.AsNoTracking()
+            .Include(x => x.SourceReports)
+            .Include(x => x.Conflicts)
+            .Include(x => x.Observations)
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(x => x.Id == incidentId, cancellationToken);
+        if (incident is null)
+        {
+            return Results.NotFound();
+        }
+
+        var briefing = await generator.GenerateAsync(incident, cancellationToken);
+        return Results.Ok(new
+        {
+            briefing.IncidentId,
+            briefing.Text,
+            briefing.UsedAiOrdering,
+            claims = briefing.OrderedClaims.Select(x => new
+            {
+                x.ClaimId,
+                x.SourceReportId,
+                x.EvidenceReferences
+            })
         });
     }
 
@@ -235,7 +272,7 @@ public static class IncidentEndpoints
         var applied = await processor.ResolveAsync(new ResolveIncidentConflict(
             incidentId,
             conflictId,
-            request.SelectedReportId,
+            request.SelectedClaimId,
             Actor(context),
             request.ExpectedVersion), cancellationToken);
         if (!applied)
@@ -327,7 +364,7 @@ public sealed record ReviewIncidentRequest(
     string? Reason,
     string? ReviewedIncidentLga);
 
-public sealed record ResolveConflictRequest(Guid SelectedReportId, int ExpectedVersion);
+public sealed record ResolveConflictRequest(Guid SelectedClaimId, int ExpectedVersion);
 
 public sealed record AppendIncidentNoteRequest(
     Guid NoteId,

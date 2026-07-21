@@ -11,7 +11,7 @@ namespace First10.Infrastructure.Modules.Operations;
 public interface IPilotActivationGate
 {
     Task<ActivationGateStatus> EvaluateAsync(CancellationToken cancellationToken = default);
-    Task<bool> CanUseWhatsAppAsync(CancellationToken cancellationToken = default);
+    Task<bool> CanUseWhatsAppAsync(string? destination = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class PilotActivationGate(
@@ -39,34 +39,62 @@ public sealed class PilotActivationGate(
             }
         }
 
-        Require(blockers, "OpenAI:ApprovedProfile:ProjectId");
-        Require(blockers, "OpenAI:ApprovedProfile:Model");
-        Require(blockers, "OpenAI:ApprovedProfile:Region");
-        Require(blockers, "OpenAI:ApprovedProfile:RetentionMode");
+        foreach (var key in new[]
+                 {
+                     "ProjectId", "Region", "RetentionMode", "TranscriptionModel", "TriageModel", "CrewBriefingModel"
+                 })
+        {
+            RequireMatching(blockers, $"OpenAI:{key}", $"OpenAI:ApprovedProfile:{key}");
+        }
         Require(blockers, "Channels:WhatsApp:PhoneNumberId");
         Require(blockers, "Channels:WhatsApp:AccessToken");
         Require(blockers, "Channels:WhatsApp:AppSecret");
-        var initial = await database.GuidanceTemplateSets.AsNoTracking().AnyAsync(
-            x => x.EnabledAtUtc != null
-                 && x.SupersededAtUtc == null
-                 && x.Purpose == GuidancePurpose.InitialSafety,
-            cancellationToken);
-        var status = await database.GuidanceTemplateSets.AsNoTracking().AnyAsync(
-            x => x.EnabledAtUtc != null
-                 && x.SupersededAtUtc == null
-                 && x.Purpose == GuidancePurpose.ResponseStatus,
-            cancellationToken);
-        if (!initial || !status)
+        var templates = await database.GuidanceTemplateSets.AsNoTracking()
+            .Where(x => x.EnabledAtUtc != null && x.SupersededAtUtc == null && x.IsConservativeDefault)
+            .Select(x => new { x.Purpose, x.Trigger })
+            .ToArrayAsync(cancellationToken);
+        var requiredGuidance = new[]
         {
-            blockers.Add("approved_guidance_coverage_incomplete");
+            (GuidancePurpose.InitialSafety, "initial"),
+            (GuidancePurpose.ResponseStatus, "verified"),
+            (GuidancePurpose.ResponseStatus, "dispatched"),
+            (GuidancePurpose.ResponseStatus, "arrived"),
+            (GuidancePurpose.ResponseStatus, "transported"),
+            (GuidancePurpose.ResponseStatus, "closed"),
+            (GuidancePurpose.ReopenCorrection, "reopened")
+        };
+        foreach (var required in requiredGuidance)
+        {
+            if (!templates.Any(x => x.Purpose == required.Item1 && x.Trigger == required.Item2))
+            {
+                blockers.Add($"approved_guidance_{required.Item1.ToString().ToLowerInvariant()}_{required.Item2}_missing");
+            }
         }
 
         return new ActivationGateStatus(blockers.Count == 0, blockers, timeProvider.GetUtcNow());
     }
 
-    public async Task<bool> CanUseWhatsAppAsync(CancellationToken cancellationToken = default) =>
-        configuration.GetValue<bool>("Channels:WhatsApp:SandboxMode")
-        || (await EvaluateAsync(cancellationToken)).IsOpen;
+    public async Task<bool> CanUseWhatsAppAsync(
+        string? destination = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!configuration.GetValue<bool>("Channels:WhatsApp:SandboxMode"))
+        {
+            return (await EvaluateAsync(cancellationToken)).IsOpen;
+        }
+
+        var environmentName = configuration["DOTNET_ENVIRONMENT"]
+            ?? configuration["ASPNETCORE_ENVIRONMENT"];
+        if (string.Equals(environmentName, "Production", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var allowlist = configuration.GetSection("Channels:WhatsApp:SandboxAllowedDestinations")
+            .Get<string[]>() ?? [];
+        return allowlist.Length > 0
+               && (destination is null || allowlist.Contains(destination, StringComparer.Ordinal));
+    }
 
     public async Task<bool> RecordAsync(
         Guid id,
@@ -106,6 +134,20 @@ public sealed class PilotActivationGate(
         if (string.IsNullOrWhiteSpace(configuration[key]))
         {
             blockers.Add($"configuration_{key.Replace(':', '_').ToLowerInvariant()}_missing");
+        }
+    }
+
+    private void RequireMatching(List<string> blockers, string effectiveKey, string approvedKey)
+    {
+        Require(blockers, effectiveKey);
+        Require(blockers, approvedKey);
+        var effective = configuration[effectiveKey];
+        var approved = configuration[approvedKey];
+        if (!string.IsNullOrWhiteSpace(effective)
+            && !string.IsNullOrWhiteSpace(approved)
+            && !string.Equals(effective, approved, StringComparison.Ordinal))
+        {
+            blockers.Add($"configuration_{effectiveKey.Replace(':', '_').ToLowerInvariant()}_not_approved");
         }
     }
 }

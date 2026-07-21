@@ -2,11 +2,13 @@ using First10.Infrastructure.Modules.Guidance;
 using First10.Infrastructure.Modules.IdentityAudit;
 using First10.Infrastructure.Persistence;
 using First10.Modules.Dispatch;
+using First10.Modules.BuildingBlocks.Contracts;
 using First10.Modules.Guidance;
 using First10.Modules.IdentityAudit;
 using First10.Modules.Incidents;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using First10.Infrastructure.Modules.Operations;
 
 namespace First10.Infrastructure.Modules.Dispatch;
@@ -19,7 +21,8 @@ public sealed class DispatchTransitionProcessor(
     First10DbContext database,
     GuidanceIntentProcessor guidance,
     TimeProvider timeProvider,
-    PilotMetrics? metrics = null)
+    PilotMetrics? metrics = null,
+    IDbContextOutbox<First10DbContext>? outbox = null)
 {
     public async Task<DispatchTransitionOutcome> ApplyAsync(
         TransitionIncidentDispatch command,
@@ -131,14 +134,75 @@ public sealed class DispatchTransitionProcessor(
             command.TargetStatus.ToString().ToLowerInvariant(),
             purpose,
             cancellationToken);
+        if (outbox is not null)
+        {
+            foreach (var intentId in created.Where(x => x.ReadyForDelivery).Select(x => x.IntentId))
+            {
+                await outbox.PublishAsync(new DeliverGuidanceIntent(intentId));
+            }
+
+            if (command.TargetStatus == DispatchStatus.Verified)
+            {
+                await PublishRecognitionAsync(outbox, incident.Id, now, cancellationToken);
+            }
+
+            await outbox.PublishAsync(new IncidentChanged(
+                incident.Id,
+                dispatch.Version,
+                "dispatch",
+                now));
+            await database.SaveChangesAsync(cancellationToken);
+        }
         if (command.TargetStatus == DispatchStatus.Dispatched)
         {
             metrics?.Dispatched(now - incident.CreatedAtUtc);
         }
         await transaction.CommitAsync(cancellationToken);
+        if (outbox is not null)
+        {
+            await outbox.FlushOutgoingMessagesAsync();
+        }
         return new DispatchTransitionOutcome(
             DispatchTransitionResult.Applied,
             created.Where(x => x.ReadyForDelivery).Select(x => x.IntentId).ToArray());
+    }
+
+    private async Task PublishRecognitionAsync(
+        IDbContextOutbox<First10DbContext> messageOutbox,
+        Guid incidentId,
+        DateTimeOffset verifiedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var sources = await database.IncidentSourceReports.AsNoTracking()
+            .Where(x => x.IncidentId == incidentId)
+            .ToArrayAsync(cancellationToken);
+        var reportIds = sources.Select(x => x.ReportId).ToArray();
+        var triageCases = await database.TriageCases.AsNoTracking()
+            .Include(x => x.Assessments)
+            .Where(x => reportIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        var sessionIds = triageCases.Values.Select(x => x.SessionId).ToArray();
+        var sessions = await database.GuidedIntakeSessions.AsNoTracking()
+            .Where(x => sessionIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        foreach (var source in sources)
+        {
+            var triage = triageCases[source.ReportId];
+            var session = sessions[triage.SessionId];
+            var language = triage.AuthoritativeAssessmentId.HasValue
+                ? triage.Assessments.Single(x => x.Id == triage.AuthoritativeAssessmentId.Value).Language.ToString()
+                : "English";
+            await messageOutbox.PublishAsync(new ContributionDispatcherVerified(
+                source.ReportId,
+                incidentId,
+                source.ReportId,
+                source.ReporterIndependenceKey,
+                session.ContactReference,
+                session.Channel.ToString(),
+                language,
+                "Unknown",
+                verifiedAtUtc));
+        }
     }
 }
 
@@ -147,13 +211,8 @@ public static class DispatchTransitionHandler
     public static async Task Handle(
         TransitionIncidentDispatch command,
         DispatchTransitionProcessor processor,
-        IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var result = await processor.ApplyAsync(command, cancellationToken);
-        foreach (var intentId in result.DeliveryIntentIds)
-        {
-            await bus.PublishAsync(new DeliverGuidanceIntent(intentId));
-        }
+        await processor.ApplyAsync(command, cancellationToken);
     }
 }
