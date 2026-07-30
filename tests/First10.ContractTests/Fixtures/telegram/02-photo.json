@@ -1,0 +1,12 @@
+{
+  "update_id": 700002,
+  "message": {
+    "message_id": 102,
+    "date": 1784558405,
+    "chat": { "id": 99887766, "type": "private" },
+    "photo": [
+      { "file_id": "tg-photo-small", "width": 320, "height": 240 },
+      { "file_id": "tg-photo-handle", "width": 1280, "height": 960 }
+    ]
+  }
+}

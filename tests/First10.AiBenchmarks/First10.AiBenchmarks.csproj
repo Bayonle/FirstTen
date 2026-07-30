@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/First10.Infrastructure/First10.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/First10.Modules/First10.Modules.csproj" />
+  </ItemGroup>
+</Project>

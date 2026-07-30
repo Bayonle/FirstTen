@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/First10.Api/First10.Api.csproj" />
+    <ProjectReference Include="../../src/First10.Infrastructure/First10.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/First10.Modules/First10.Modules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Fixtures/**/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

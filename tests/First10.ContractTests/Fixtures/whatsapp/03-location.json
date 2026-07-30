@@ -1,0 +1,20 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "waba-test",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": { "phone_number_id": "phone-number-id" },
+        "messages": [{
+          "from": "2348000000000",
+          "id": "wamid.location-103",
+          "timestamp": "1784558409",
+          "type": "location",
+          "location": { "latitude": 6.6018, "longitude": 3.3515 }
+        }]
+      }
+    }]
+  }]
+}

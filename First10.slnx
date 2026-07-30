@@ -8,6 +8,16 @@
     <Project Path="src/First10.Worker/First10.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/First10.AiBenchmarks/First10.AiBenchmarks.csproj" />
     <Project Path="tests/First10.ArchitectureTests/First10.ArchitectureTests.csproj" />
+    <Project Path="tests/First10.ContractTests/First10.ContractTests.csproj" />
+    <Project Path="tests/First10.IntegrationTests/First10.IntegrationTests.csproj" />
+    <Project Path="tests/First10.LoadTests/First10.LoadTests.csproj" />
+    <Project Path="tests/First10.PrivacyBenchmarks/First10.PrivacyBenchmarks.csproj" />
+    <Project Path="tests/First10.UnitTests/First10.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/First10.GuidanceAssets/First10.GuidanceAssets.csproj" />
+    <Project Path="tools/First10.Migrator/First10.Migrator.csproj" />
   </Folder>
 </Solution>

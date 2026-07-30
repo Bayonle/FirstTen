@@ -1,5 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Concentus.Oggfile" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+    <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../First10.Modules/First10.Modules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../../data/corridors/berger-mowe.geojson">
+      <LogicalName>First10.Infrastructure.data.corridors.berger-mowe.geojson</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

@@ -64,6 +64,7 @@ public static class Extensions
             .WithMetrics(metrics =>
             {
                 metrics
+                    .AddMeter("First10.Pilot")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation();
